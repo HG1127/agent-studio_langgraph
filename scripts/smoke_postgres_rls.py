@@ -19,6 +19,7 @@ import uuid
 from app.domain.errors import VersionConflict
 from app.domain.specs import AgentSpec, Goal
 from app.infrastructure.postgres.scoped_store import PgScopedStore
+from app.infrastructure.postgres.scoped_run_queue import PgScopedRunQueue
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine.url import make_url
 from sqlalchemy.exc import DBAPIError
@@ -200,6 +201,45 @@ def main() -> int:
                 ).scalar_one()
                 assert version_count == 3, version_count
                 print("PASS: real PostgreSQL scoped Agent v1→v2→Run & atomic initial event")
+                queue_a = PgScopedRunQueue(store_a)
+                claim = queue_a.claim_next(worker_id="rls-worker", lease_seconds=90)
+                assert claim is not None and claim["run_id"] == run_a["id"]
+                assert claim["attempt"] == 1
+                assert queue_a.heartbeat(run_a["id"], attempt=1, lease_seconds=90)
+                assert queue_a.finalize(
+                    run_a["id"], attempt=1, status="SUCCEEDED", output="verified"
+                )
+                assert store_a.get_run(run_a["id"])["status"] == "SUCCEEDED"
+                final_events = store_a.get_events(run_a["id"])
+                assert [event["type"] for event in final_events] == [
+                    "queued", "worker_claimed", "worker_finished"
+                ]
+                assert not queue_a.finalize(run_a["id"], attempt=1, status="FAILED")
+
+                # Crash/lease expiry fencing: an expired worker must never
+                # finalize after recovery and another worker's claim.
+                waiting = store_a.queue_run(created["id"], "测试 Worker 崩溃恢复")
+                first = queue_a.claim_next(worker_id="worker-before-crash")
+                assert first and first["run_id"] == waiting["id"]
+                connection.execute(
+                    text(
+                        "UPDATE runs SET lease_until=now()-interval '5 seconds' "
+                        "WHERE id=:id"
+                    ),
+                    {"id": uuid.UUID(waiting["id"])},
+                )
+                recovered = queue_a.recover_expired()
+                assert len(recovered) == 1
+                assert recovered[0]["status"] == "QUEUED"
+                assert not queue_a.finalize(
+                    waiting["id"], attempt=first["attempt"], status="SUCCEEDED"
+                )
+                second = queue_a.claim_next(worker_id="worker-after-crash")
+                assert second and second["attempt"] == first["attempt"] + 1
+                assert queue_a.finalize(
+                    waiting["id"], attempt=second["attempt"], status="SUCCEEDED"
+                )
+                print("PASS: PostgreSQL scoped queue claim/lease/fencing/reclaim lifecycle")
 
                 # A different actor cannot impersonate a workspace member
                 # merely by setting X-Workspace-ID.
