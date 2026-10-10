@@ -6,14 +6,13 @@ until the staging Alembic migration and authenticated DB2 tests are confirmed.
 
 from __future__ import annotations
 
-import uuid
 import unittest
+import uuid
 from unittest.mock import MagicMock
-
-from sqlalchemy.dialects import postgresql
 
 from app.infrastructure.postgres.scoped_run_queue import PgScopedRunQueue
 from app.infrastructure.postgres.scoped_store import PgScopedStore
+from sqlalchemy.dialects import postgresql
 
 
 class PostgreSQLQueueTests(unittest.TestCase):

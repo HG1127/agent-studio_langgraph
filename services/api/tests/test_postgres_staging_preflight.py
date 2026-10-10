@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import importlib.util
 import io
-from contextlib import redirect_stderr
-
-from sqlalchemy.exc import OperationalError
 import os
 import unittest
+from contextlib import redirect_stderr
 from pathlib import Path
 from unittest.mock import MagicMock, patch
+
+from sqlalchemy.exc import OperationalError
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 
@@ -168,7 +168,8 @@ class StagingPreflightTests(unittest.TestCase):
     def test_wrong_password_has_short_actionable_error_without_traceback(self):
         buffer = io.StringIO()
         failure = OperationalError(
-            "DB login", {},
+            "DB login",
+            {},
             Exception("FATAL: password authentication failed for user 'studio_migrator'"),
         )
         with (

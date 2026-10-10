@@ -8,11 +8,10 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from fastapi.testclient import TestClient
-
 from app.application.draft_normalizer import DraftFormatError, normalize_draft
 from app.llm import generate_draft
 from app.main import app
+from fastapi.testclient import TestClient
 
 
 class DraftNormalizerTests(unittest.TestCase):
@@ -42,7 +41,10 @@ class DraftNormalizerTests(unittest.TestCase):
             "spec": {
                 "name": "人物关系助手",
                 "description": "查证联系",
-                "goal": {"task": "核验目标人物的组织与资本关系", "success_criteria": ["逐边引用证据"]},
+                "goal": {
+                    "task": "核验目标人物的组织与资本关系",
+                    "success_criteria": ["逐边引用证据"],
+                },
                 "permissions": {"external_write_allowed": True},
                 "tools": {"enabled": ["fake_network_tool"]},
             }
@@ -70,7 +72,13 @@ class DraftNormalizerTests(unittest.TestCase):
         invalid = [
             "I cannot output JSON",
             json.dumps({"name": "Agent", "task": "short", "success_criteria": []}),
-            json.dumps({"name": "Agent", "task": "完成一个具体的数据分析工作", "success_criteria": {"a": 1}}),
+            json.dumps(
+                {
+                    "name": "Agent",
+                    "task": "完成一个具体的数据分析工作",
+                    "success_criteria": {"a": 1},
+                }
+            ),
             "{}",
             "",
         ]
@@ -176,7 +184,9 @@ class AgentDraftRouteTests(unittest.TestCase):
             )
         self.assertEqual(response.status_code, 200, response.text)
         self.assertFalse(response.json()["spec"]["permissions"]["external_write_allowed"])
-        self.assertEqual(response.json()["spec"]["goal"]["task"], "对公开市场的企业数据进行调查并核查")
+        self.assertEqual(
+            response.json()["spec"]["goal"]["task"], "对公开市场的企业数据进行调查并核查"
+        )
 
 
 if __name__ == "__main__":

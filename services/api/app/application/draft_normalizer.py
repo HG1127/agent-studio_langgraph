@@ -60,8 +60,10 @@ def _text(value: Any) -> str:
 def normalize_draft(message: dict[str, Any]) -> AgentSpec:
     data = _as_object(message.get("content"))
     for key in ("spec", "agent", "data", "result"):
-        if key in data and isinstance(data[key], dict) and not any(
-            name in data for name in ("name", "task", "goal")
+        if (
+            key in data
+            and isinstance(data[key], dict)
+            and not any(name in data for name in ("name", "task", "goal"))
         ):
             data = data[key]
             break
@@ -86,8 +88,10 @@ def normalize_draft(message: dict[str, Any]) -> AgentSpec:
         criteria = [criteria]
     if criteria is None:
         criteria = ["提供可核验的结果，并说明未能确认的部分"]
-    if not isinstance(criteria, list) or not criteria or any(
-        not isinstance(item, str) or not item.strip() for item in criteria
+    if (
+        not isinstance(criteria, list)
+        or not criteria
+        or any(not isinstance(item, str) or not item.strip() for item in criteria)
     ):
         raise DraftFormatError("模型生成的成功标准不是有效的非空字符串列表")
     if len(criteria) > 15:

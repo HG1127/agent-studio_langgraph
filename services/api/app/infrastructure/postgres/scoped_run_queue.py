@@ -141,9 +141,7 @@ class PgScopedRunQueue:
             "lease_until": lease_until.isoformat(),
         }
 
-    def heartbeat(
-        self, run_id: str | uuid.UUID, *, attempt: int, lease_seconds: int = 150
-    ) -> bool:
+    def heartbeat(self, run_id: str | uuid.UUID, *, attempt: int, lease_seconds: int = 150) -> bool:
         """Extend only the currently owned, non-expired lease."""
         self._lease_seconds(lease_seconds)
         if attempt < 1:
