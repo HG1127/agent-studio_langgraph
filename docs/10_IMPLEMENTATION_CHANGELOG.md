@@ -58,3 +58,13 @@
 目前 Docker Desktop Linux Engine 在目标 Windows 环境中未启动，未执行真正 PG 建表或 RLS 在线测试。原 FastAPI、Next.js 和 LangGraph Worker **仍使用 SQLite**；设置 STUDIO_DATABASE_BACKEND=postgres 会 fail-closed 而非假装已经完成迁移。需按照 docs/12_POSTGRES_DATABASE_V05.md 完成 DB2–DB5 实际验收后切换。
 
 本地测试记录：Python 50/50 项通过（含新增 PG schema、Alembic offline、权限配置与安全迁移评估）；已生成可供 DBA 检查的离线 PG17 建库 SQL；Docker Compose config、Ruff、架构约束、Next ESLint 与 build 通过。GitHub Actions postgres-rls-integration Job 已编写但未经远程执行，因此不能声称在线 PG RLS 测试已通过。
+
+## 2026-10-10 v0.6 PostgreSQL 适配器与 SQL 安全修复
+
+修复 PostgreSQL Alembic 初始版本中 `END $;` 少一个分隔符的语法错误；新增 `pglast` 依赖，在 CI 用 PostgreSQL 解析器直接检查整份升级 SQL（此前仅字符串包含检查可漏过错误）。
+
+新增 `app/infrastructure/postgres/scoped_store.py`，实现当前工作空间内 Agent、AgentVersion、Run、初始 RunEvent 的事务内 SQLAlchemy CRUD 和乐观版本控制，封装清晰的业务范围过滤；在 `transaction.py` 强制验证非管理员数据库登录，使用 `SET LOCAL ROLE agentstudio_runtime` 和可信 UUID 会话作用域。新增 Mock/SQL 编译层面的事务、版本、权限负向测试，并扩展未来真正 PostgreSQL CI smoke 的 owner / viewer / Cross-Workspace 场景。
+
+现有 SQLite API/Worker **保持运行并拒绝未经验证的 PostgreSQL 后端标志**。由于此 Runner Docker Engine 未安装/不可连接，真实 PG17 RLS、实际迁移、身份服务切换、Worker/Checkpoint 与旧数据库导入仍未验收。详见 `docs/13_POSTGRES_V06_ADAPTER.md`。
+
+本地最终测试：Python unittest 60/60 项通过；Alembic 整份迁移 SQL 共 92 条语句通过 PostgreSQL 语法解析；Ruff、架构边界、前端 ESLint + Next.js 生产构建及两条原有 HTTP 模拟服务 Smoke 验证通过。CI PostgreSQL 真机集成测试额外覆盖 PgScopedStore 的 Agent v1→v2、Run/Event、viewer 禁止写与跨工作空间隔离；但尚无真实 PG 在线日志，DB2 保持未验收。

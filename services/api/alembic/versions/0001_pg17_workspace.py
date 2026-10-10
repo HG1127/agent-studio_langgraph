@@ -70,7 +70,7 @@ def upgrade() -> None:
              ) THEN
                RAISE EXCEPTION 'agentstudio_runtime role must be NOLOGIN and NOBYPASSRLS';
              END IF;
-           END $;"""
+           END $$;"""
     )
 
     op.create_table(

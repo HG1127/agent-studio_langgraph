@@ -21,6 +21,7 @@ from app.infrastructure.postgres.models import Base
 from app.infrastructure.postgres.transaction import workspace_transaction
 from app.main import app
 from fastapi.testclient import TestClient
+from pglast import parse_sql
 from sqlalchemy import create_engine
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.schema import CreateTable
@@ -113,6 +114,11 @@ class PostgreSQLSchemaContractTests(unittest.TestCase):
         self.assertNotIn("GRANT SELECT,INSERT,UPDATE ON public.run_events", generated)
         self.assertIn("CREATE ROLE agentstudio_runtime NOLOGIN NOBYPASSRLS", generated)
         self.assertIn("REVOKE EXECUTE ON FUNCTION", generated)
+        # Text assertions alone previously missed an invalid DO $$ terminator.
+        # Parsing the *complete* migration prevents such SQL from passing CI.
+        parsed = parse_sql(generated)
+        self.assertGreaterEqual(len(parsed), 85)
+        self.assertIn("END $$;", generated)
         self.assertNotIn("GRANT SELECT ON public.users", generated)
         self.assertNotIn("GRANT SELECT ON public.sessions", generated)
         self.assertNotIn("GRANT SELECT ON public.quarantined_legacy_rows", generated)

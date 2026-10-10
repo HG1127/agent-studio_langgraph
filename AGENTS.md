@@ -40,3 +40,11 @@
 - 旧 SQLite 数据不能自动归属任何用户；迁移前需审计所有权、执行备份和对账。
 - 真实 PG 服务、RLS、Worker/checkpoint 与数据迁移未经验证时，`STUDIO_DATABASE_BACKEND=postgres` 必须禁止启动，不能静默使用 SQLite。
 - Alembic 离线生成 SQL、ORM 结构测试与未来 CI 配置不等于真实数据库上线；状态披露须准确。
+
+## V0.6 PostgreSQL 适配增量规则
+
+- `app/infrastructure/postgres/scoped_store.py` 只能处理已通过 RLS 的事务内连接，构造时必须验证 `current_user=agentstudio_runtime` 和有认证的 actor/workspace UUID；不得接入迁移管理员 Engine。
+- `workspace_transaction()` 使用非超级用户的数据库账号、`SET LOCAL ROLE` 和事务内 `set_config(..., true)`；禁止跨请求共享不受控的 `Connection`。
+- Agent + v1、Run + Event1 需要同事务提交或整体回滚；Agent 新版本采用 `SELECT ... FOR UPDATE` 和乐观版本冲突条件。
+- Alembic 完整生成 SQL 必须通过 `pglast` PostgreSQL 语法解析；这不能替代 DB2 的真实 PostgreSQL 执行与权限测试。
+- Postgres Adapter 仍是独立 staging 模块，未经真实 PG17 身份/队列/Checkpoint 验收不能向普通用户开放。

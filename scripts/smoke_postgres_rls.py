@@ -16,6 +16,9 @@ import json
 import os
 import uuid
 
+from app.domain.errors import VersionConflict
+from app.domain.specs import AgentSpec, Goal
+from app.infrastructure.postgres.scoped_store import PgScopedStore
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine.url import make_url
 from sqlalchemy.exc import DBAPIError
@@ -70,7 +73,7 @@ def main() -> int:
     engine = create_engine(
         value, pool_pre_ping=True, future=True, connect_args={"connect_timeout": 5}
     )
-    a_user, b_user = uuid.uuid4(), uuid.uuid4()
+    a_user, b_user, viewer_user = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
     a_ws, b_ws = uuid.uuid4(), uuid.uuid4()
     a_agent, b_agent = uuid.uuid4(), uuid.uuid4()
     version = uuid.uuid4()
@@ -84,7 +87,7 @@ def main() -> int:
                 ).scalar_one()
                 if found != "0001_pg17_workspace":
                     raise RuntimeError("Apply Alembic baseline to localhost PG first")
-                for user in (a_user, b_user):
+                for user in (a_user, b_user, viewer_user):
                     connection.execute(
                         text(
                             """INSERT INTO users(id,email,password_hash,created_at)
@@ -108,6 +111,14 @@ def main() -> int:
                         ),
                         {"ws": ws, "actor": user},
                     )
+                connection.execute(
+                    text(
+                        """INSERT INTO workspace_members(
+                             workspace_id,user_id,role,created_at
+                           ) VALUES(:ws,:actor,'viewer',now())"""
+                    ),
+                    {"ws": a_ws, "actor": viewer_user},
+                )
                 for agent, ws in ((a_agent, a_ws), (b_agent, b_ws)):
                     connection.execute(
                         text(
@@ -131,23 +142,99 @@ def main() -> int:
                 connection.execute(text("SET LOCAL ROLE agentstudio_runtime"))
                 count = connection.execute(text("SELECT count(*) FROM agents")).scalar_one()
                 assert count == 0, f"Unscoped RLS failed: {count}"
+                try:
+                    PgScopedStore(connection, a_ws)
+                except PermissionError:
+                    pass
+                else:
+                    raise AssertionError("Store accepted missing authenticated transaction scope")
 
                 _set_scope(connection, a_user, a_ws)
                 visible = connection.execute(text("SELECT id FROM agents")).scalars().all()
                 assert visible == [a_agent], visible
+                store_a = PgScopedStore(connection, a_ws)
+                assert store_a.get_agent(a_agent)["id"] == str(a_agent)
+                assert len(store_a.list_agents()) == 1
+
+                created = store_a.create_agent(
+                    AgentSpec(
+                        name="真实 PostgreSQL 适配测试助手",
+                        goal=Goal(task="执行工作空间作用域隔离与版本控制验收"),
+                    )
+                )
+                assert created["current_version"] == 1
+                original = store_a.list_versions(created["id"])
+                assert len(original) == 1 and original[0]["version"] == 1
+                updated = store_a.create_version(
+                    created["id"],
+                    AgentSpec(
+                        name="升级版本验证助手",
+                        goal=Goal(task="验证 PostgreSQL 事务和版本更新正确性"),
+                    ),
+                    expected_version=1,
+                )
+                assert updated["version"] == 2
+                try:
+                    store_a.create_version(
+                        created["id"],
+                        AgentSpec(
+                            name="冲突请求",
+                            goal=Goal(task="此版本更新必须被严格拒绝并保持历史记录"),
+                        ),
+                        expected_version=1,
+                    )
+                except VersionConflict:
+                    pass
+                else:
+                    raise AssertionError("PostgreSQL version CAS accepted stale update")
+                run_a = store_a.queue_run(created["id"], "测试持久化与队列初始事件")
+                assert run_a["agent_version_id"] == updated["id"]
+                assert store_a.get_run(run_a["id"])["status"] == "QUEUED"
+                events = store_a.get_events(run_a["id"])
+                assert len(events) == 1 and events[0]["type"] == "queued"
+                assert len(store_a.get_events(run_a["id"], after_seq=1)) == 0
                 version_count = connection.execute(
                     text("SELECT count(*) FROM agent_versions")
                 ).scalar_one()
-                assert version_count == 1, version_count
+                assert version_count == 3, version_count
+                print("PASS: real PostgreSQL scoped Agent v1→v2→Run & atomic initial event")
 
                 # A different actor cannot impersonate a workspace member
                 # merely by setting X-Workspace-ID.
                 _set_scope(connection, b_user, a_ws)
                 assert connection.execute(text("SELECT count(*) FROM agents")).scalar_one() == 0
+                assert PgScopedStore(connection, a_ws).get_agent(created["id"]) is None
 
                 _set_scope(connection, b_user, b_ws)
                 visible_b = connection.execute(text("SELECT id FROM agents")).scalars().all()
                 assert visible_b == [b_agent], visible_b
+                store_b = PgScopedStore(connection, b_ws)
+                assert store_b.get_agent(created["id"]) is None
+                assert store_b.get_run(run_a["id"]) is None
+                assert store_b.get_events(run_a["id"]) == []
+                _set_scope(connection, viewer_user, a_ws)
+                store_viewer = PgScopedStore(connection, a_ws)
+                assert store_viewer.get_agent(created["id"]) is not None
+                # A viewer is allowed to read but not to insert Agents or Runs.
+                nested = connection.begin_nested()
+                try:
+                    try:
+                        store_viewer.create_agent(
+                            AgentSpec(
+                                name="越权操作应拒绝",
+                                goal=Goal(task="尝试使用只读角色创建新的 Agent 配置"),
+                            )
+                        )
+                    except DBAPIError:
+                        nested.rollback()
+                    else:
+                        nested.rollback()
+                        raise AssertionError("Viewer bypassed database RLS write policy")
+                finally:
+                    if nested.is_active:
+                        nested.rollback()
+                print("PASS: PostgreSQL viewer reads own workspace but cannot create Agent")
+                _set_scope(connection, b_user, b_ws)
                 _must_fail(
                     connection,
                     """INSERT INTO agents(

@@ -1,3 +1,4 @@
 -r requirements.lock.txt
 -r requirements-postgres.txt
 ruff>=0.13.0,<1.0.0
+pglast==8.5  # PostgreSQL parser: fail CI on syntactically invalid offline migrations

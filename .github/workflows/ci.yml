@@ -98,7 +98,7 @@ jobs:
         with:
           python-version: "3.12"
       - name: Install PostgreSQL integration dependencies
-        run: python -m pip install -r requirements-postgres.txt
+        run: python -m pip install -r requirements-dev.txt
       - name: Apply real PostgreSQL 17 Alembic migration
         run: python -m alembic -c alembic.ini upgrade head
       - name: Verify real database RLS and immutability

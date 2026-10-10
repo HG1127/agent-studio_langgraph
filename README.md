@@ -8,7 +8,7 @@
 
 - 需求基线：Agent Studio V3.0（对话中确认的产品方向）
 - 交付节奏：阶段 0 工程基础 → 阶段 1 首条真实执行闭环 → 阶段 2 P0 内测 → 阶段 3 商业化公测
-- 当前运行：Next.js、FastAPI、LangGraph 与 SQLite 本地 Worker。已新增 PostgreSQL 17 + pgvector 的 SQLAlchemy/Alembic/RLS 数据模型，但 PostgreSQL 还未接管 API 或 Worker；Redis、MCP 后续迭代。
+- 当前运行：Next.js、FastAPI、LangGraph 与 SQLite 本地 Worker。V0.6 已新增 PostgreSQL 17 + pgvector 的事务化 Agent/Version/Run 仓储适配和 Alembic RLS SQL 检查，但 PostgreSQL 尚未接管 API 或 Worker；Redis、MCP 后续迭代。
 - 原则：只有真实模型与真实工具调用才标记为“已运行”；没有凭据时必须明确提示“待配置”。
 
 ## 核心资料
@@ -24,6 +24,7 @@
 - docs/10_IMPLEMENTATION_CHANGELOG.md：本轮重构与验收记录
 - docs/11_WORKSPACE_AUTH.md：本地认证、工作空间隔离与安全剩余项
 - docs/12_POSTGRES_DATABASE_V05.md：PostgreSQL 17 + pgvector 选型、迁移、RLS 与本地安装测试
+- docs/13_POSTGRES_V06_ADAPTER.md：PostgreSQL 仓储适配、迁移修复、可重复测试和剩余切换条件
 
 ## 约定
 
@@ -105,6 +106,11 @@ $env:MODEL_NAME="your-authorized-model"
 如需进行 PostgreSQL 在线验证，先打开 Docker Desktop、为 `infra/postgres/.env` 配置本地随机密码，再按 `docs/12_POSTGRES_DATABASE_V05.md` 启动容器、执行 Alembic 并运行真实 RLS 测试。数据库连接信息不得写入 Git。
 
 `STUDIO_DATABASE_BACKEND=postgres` 在运行时适配完成之前将明确拒绝启动，不会无提示回退到 SQLite。
+
+### V0.6 适配进展
+
+PostgreSQL 初始迁移中 `DO $$` 结束标记错误已修复，并且完整 Alembic SQL 纳入 `pglast` 解析门禁。新增 `app/infrastructure/postgres/scoped_store.py`，实现事务作用域内的 Agent 创建/查询、不可变版本、Run 创建与初始事件及列表查询；`transaction.py` 严格拒绝管理员、BYPASSRLS 角色和未授权 UUID Scope。以上**尚未切换到 API 和 Worker**，因为本机没有可连接的真实 PG17 实例；详见 `docs/13_POSTGRES_V06_ADAPTER.md`。
+
 
 ## 当前已实现 / 未实现
 
