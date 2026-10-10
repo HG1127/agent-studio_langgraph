@@ -119,3 +119,155 @@
     flex: 1;
   }
 }
+
+/* Information-dense status cards: readable at desktop and mobile widths. */
+.development-status {
+  padding: 13px 17px;
+  overflow-wrap: anywhere;
+}
+.development-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  line-height: 1.7;
+}
+.development-head strong {
+  flex-shrink: 0;
+  font-size: 12px;
+}
+.development-head span {
+  min-width: 0;
+  flex: 1;
+  color: #886936;
+}
+.development-more {
+  margin-top: 5px;
+  color: #87775d;
+  font-size: 11px;
+  line-height: 1.8;
+}
+.development-more summary {
+  cursor: pointer;
+  width: fit-content;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.development-more summary:focus-visible,
+.runtime-copy:focus-visible {
+  outline: 2px solid #625ad3;
+  outline-offset: 3px;
+}
+.development-more p {
+  max-width: 980px;
+  margin: 7px 0 3px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.runtime-strip {
+  display: block;
+  min-width: 0;
+  font-size: 12px;
+  padding: 12px 15px;
+}
+.runtime-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px 13px;
+  min-width: 0;
+}
+.runtime-summary strong {
+  color: #4e5b69;
+  font-size: 12px;
+}
+.runtime-db,
+.runtime-pg {
+  color: #778292;
+  overflow-wrap: anywhere;
+}
+.runtime-guide {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 12px 0 2px 16px;
+  margin-top: 8px;
+  border-top: 1px solid #f0f0f5;
+  font-size: 11px;
+  color: #876b37;
+}
+.runtime-guide code {
+  max-width: 100%;
+  display: inline-block;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  user-select: all;
+  border-radius: 6px;
+  background: #f5f4fa;
+  padding: 7px 9px;
+  color: #50586c;
+  font: 11px/1.65 ui-monospace, Consolas, monospace;
+}
+.runtime-copy {
+  border: 1px solid #dedbf6;
+  background: #f6f4ff;
+  border-radius: 8px;
+  padding: 7px 10px;
+  color: #645ac3;
+  font-size: 11px;
+  flex-shrink: 0;
+}
+.feedback {
+  align-items: flex-start;
+  min-width: 0;
+}
+.feedback span {
+  flex: 1;
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.8;
+}
+.feedback button {
+  flex-shrink: 0;
+  line-height: 1;
+  padding: 3px 5px;
+}
+.capability strong,
+.capability small,
+.run-item strong,
+.version-item strong,
+.template small,
+.agent small {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  overflow-wrap: anywhere;
+}
+.capability small,
+.agent small {
+  display: block;
+  -webkit-line-clamp: unset;
+  -webkit-box-orient: initial;
+}
+.capability {
+  align-items: flex-start;
+}
+.capability i {
+  flex-shrink: 0;
+}
+@media (max-width: 760px) {
+  .development-head span {
+    flex-basis: 100%;
+  }
+  .runtime-guide {
+    padding-left: 0;
+  }
+  .runtime-guide code {
+    width: 100%;
+  }
+  .runtime-pg {
+    flex-basis: 100%;
+  }
+}

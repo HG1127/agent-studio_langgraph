@@ -13,8 +13,25 @@ interface Props {
   children: ReactNode;
 }
 
+const WORKER_COMMAND = "cd services/api; .\\.venv\\Scripts\\python.exe -m app.worker";
+
 export function StudioShell({ studio, auth, children }: Props) {
   const currentPage = navigation.find((item) => item.id === studio.page);
+  const workerOnline = studio.health?.worker_online === true;
+  const healthChecked = studio.health !== null;
+  const database = studio.health?.database_backend === "sqlite_development"
+    ? "SQLite（本地开发）"
+    : studio.health?.database_backend || "等待数据库状态";
+
+  async function copyWorkerCommand() {
+    try {
+      await navigator.clipboard.writeText(WORKER_COMMAND);
+      studio.setFeedback({ error: false, text: "Worker 启动命令已复制。请在项目根目录打开另一个 PowerShell 窗口执行。" });
+    } catch {
+      studio.setFeedback({ error: true, text: "浏览器无法使用剪贴板，请选中并手动复制下方启动命令。" });
+    }
+  }
+
   return (
     <div className="shell">
       <aside className="sidebar">
@@ -43,7 +60,7 @@ export function StudioShell({ studio, auth, children }: Props) {
         <div className="side-bottom">
           <span className={`signal ${studio.connected ? "good" : "bad"}`} />
           {studio.connected ? "API 已连接" : "API 未连接"}
-          <small>本地开发样板 · v0.5（PG Schema）</small>
+          <small>本地开发版 · PostgreSQL 迁移待验证</small>
         </div>
       </aside>
       <main className="main">
@@ -52,7 +69,7 @@ export function StudioShell({ studio, auth, children }: Props) {
             Workspace <b>/</b> {currentPage?.label}
           </span>
           <div>
-            <span className="pill">开发预览</span>
+            <span className="pill">本地开发</span>
             <div className="user-control">
               <span title={auth.profile?.user.email}>{auth.profile?.user.email}</span>
               <button type="button" onClick={() => void auth.logout()} disabled={auth.working}>
@@ -62,20 +79,45 @@ export function StudioShell({ studio, auth, children }: Props) {
           </div>
         </header>
         <div className="container">
-          <div className="notice">
-            <strong>本地验证版</strong> · 已接入 LangGraph 单机检查点和不可变 Agent 版本，
-            当前实现本地登录及工作空间级对象权限校验，仍未通过生产级身份安全审计，且缺少 PostgreSQL
-            运行时适配、独立沙盒和可靠调度。PG17/RLS
-            模型已准备但尚未接管数据；请勿公开部署或导入敏感资料。
-          </div>
-          <div className="runtime-strip">
-            <span className={`signal ${studio.health?.worker_online ? "good" : "bad"}`} />
-            {studio.health?.worker_online ? "LangGraph Worker 在线" : "LangGraph Worker 未运行"}
-            <span>· 当前主数据库：SQLite（开发）；PG17 + pgvector 待激活</span>
-            {!studio.health?.worker_online && <small>在后端目录运行 python -m app.worker</small>}
-          </div>
+          <section className="notice development-status" aria-label="开发版提示">
+            <div className="development-head">
+              <strong>开发环境</strong>
+              <span>目前可验证 Agent 创建、不可变版本及本地 LangGraph 执行</span>
+            </div>
+            <details className="development-more">
+              <summary>查看数据隔离、权限和上线限制</summary>
+              <p>
+                当前采用本地账户与工作空间级权限校验，尚未通过生产级身份安全审计。
+                PostgreSQL 17 + pgvector 模型及 RLS 方案已准备，但尚未完成数据库迁移和
+                FastAPI / Worker 切换。正式沙盒、生产级调度及安全验收也尚未完成。
+                不要公开部署或导入敏感资料。
+              </p>
+            </details>
+          </section>
+
+          <section className="runtime-strip" aria-label="系统运行状态">
+            <div className="runtime-summary">
+              <span className={`signal ${workerOnline ? "good" : "bad"}`} />
+              <strong>
+                {!healthChecked ? "正在检查 Worker" : workerOnline ? "LangGraph Worker 已运行" : "LangGraph Worker 未运行"}
+              </strong>
+              <span className="runtime-db">当前数据库：{database}</span>
+              <span className="runtime-pg">PostgreSQL：准备中，尚未接管</span>
+            </div>
+            {healthChecked && !workerOnline && (
+              <div className="runtime-guide">
+                <span>运行任务前，需要在项目根目录打开另一个 PowerShell 窗口：</span>
+                <code>{WORKER_COMMAND}</code>
+                <button type="button" className="runtime-copy" onClick={() => void copyWorkerCommand()}>
+                  复制命令
+                </button>
+              </div>
+            )}
+          </section>
+
           {studio.feedback && (
-            <div role="status" className={`feedback ${studio.feedback.error ? "error" : "ok"}`}>
+            <div role={studio.feedback.error ? "alert" : "status"}
+              className={`feedback ${studio.feedback.error ? "error" : "ok"}`}>
               <span>{studio.feedback.text}</span>
               <button type="button" aria-label="关闭提示" onClick={() => studio.setFeedback(null)}>
                 ×
