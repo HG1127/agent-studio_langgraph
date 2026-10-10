@@ -25,6 +25,7 @@
 - docs/11_WORKSPACE_AUTH.md：本地认证、工作空间隔离与安全剩余项
 - docs/12_POSTGRES_DATABASE_V05.md：PostgreSQL 17 + pgvector 选型、迁移、RLS 与本地安装测试
 - docs/13_POSTGRES_V06_ADAPTER.md：PostgreSQL 仓储适配、迁移修复、可重复测试和剩余切换条件
+- docs/14_BAOTA_PG17_TUNNEL_MIGRATION.md：宝塔 PostgreSQL 17 的 Windows SSH 隧道、只读预检、确认迁移和真实 RLS 测试
 
 ## 约定
 

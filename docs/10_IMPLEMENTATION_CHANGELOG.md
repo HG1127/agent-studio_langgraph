@@ -68,3 +68,9 @@
 现有 SQLite API/Worker **保持运行并拒绝未经验证的 PostgreSQL 后端标志**。由于此 Runner Docker Engine 未安装/不可连接，真实 PG17 RLS、实际迁移、身份服务切换、Worker/Checkpoint 与旧数据库导入仍未验收。详见 `docs/13_POSTGRES_V06_ADAPTER.md`。
 
 本地最终测试：Python unittest 60/60 项通过；Alembic 整份迁移 SQL 共 92 条语句通过 PostgreSQL 语法解析；Ruff、架构边界、前端 ESLint + Next.js 生产构建及两条原有 HTTP 模拟服务 Smoke 验证通过。CI PostgreSQL 真机集成测试额外覆盖 PgScopedStore 的 Agent v1→v2、Run/Event、viewer 禁止写与跨工作空间隔离；但尚无真实 PG 在线日志，DB2 保持未验收。
+
+## 2026-10-10 宝塔服务器 PG17 真实连通性确认（后续增量）
+
+用户已在宝塔服务器建成独立 `agent_studio` PostgreSQL 17.11 容器并启用 pgvector 0.8.7，Windows 通过独立 SSH 账号的 `127.0.0.1:15429` 本地隧道已成功使用 `studio_migrator` 账户登录数据库。此项是由用户亲自操作并确认的连接事实；**尚未代表 Alembic 迁移成功或 RLS 在线测试通过**。
+
+在仓库新增 `scripts/check_postgres_staging.py`（只读预检）与 `scripts/pg_staging.ps1`（不回显输入密码、限定数据库与端口，分 Check/Migrate/RlsTest 三个步骤），并调整 `scripts/smoke_postgres_rls.py` 支持 SSH 隧道端口。单测只使用模拟数据库连接，不使用用户密码，检测错误目标、未知表、非法 Alembic 状态时拒绝修改。操作说明见 `docs/14_BAOTA_PG17_TUNNEL_MIGRATION.md`。

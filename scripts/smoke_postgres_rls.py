@@ -1,4 +1,4 @@
-"""Real PostgreSQL row-level-security smoke test.
+r"""Real PostgreSQL row-level-security smoke test.
 
 This is deliberately opt-in, LOCALHOST ONLY, transactionally rolled back.
 It requires a running pgvector/pgvector:pg17 instance migrated with Alembic.
@@ -6,7 +6,7 @@ No production/cloud DSN is accepted. The admin connection is used ONLY for
 test fixture setup and SET LOCAL ROLE; regular requests must not use it.
 
 Run from services/api:
-  $env:STUDIO_POSTGRES_TEST_ADMIN_URL = "postgresql+psycopg://...@127.0.0.1:54329/agent_studio"
+  $env:STUDIO_POSTGRES_TEST_ADMIN_URL = "postgresql+psycopg://...@127.0.0.1:15429/agent_studio"
   .\.venv\Scripts\python.exe ..\..\scripts\smoke_postgres_rls.py
 """
 
@@ -31,12 +31,14 @@ def _verify_local_test_url(value: str) -> None:
     if (
         url.drivername != "postgresql+psycopg"
         or url.host not in ("127.0.0.1", "localhost")
-        or url.port != 54329
+        or url.port not in (15429, 54329)
         or url.database != "agent_studio"
+        or url.username != "studio_migrator"
     ):
         raise RuntimeError(
             "Refusing non-local/unexpected DB URL. "
-            "Only 127.0.0.1:54329/agent_studio is allowed for this test."
+            "Only localhost:15429 (SSH tunnel) or :54329 (same-host) "
+            "and database agent_studio are allowed for this test."
         )
 
 
