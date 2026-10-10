@@ -24,8 +24,8 @@ class Tools(StrictModel):
 
 
 class State(StrictModel):
-    persistence: Literal["event_log_development"] = "event_log_development"
-    resume_enabled: bool = False
+    persistence: Literal["event_log_development", "langgraph_sqlite_development"] = "langgraph_sqlite_development"
+    resume_enabled: bool = True
 
 
 class Memory(StrictModel):

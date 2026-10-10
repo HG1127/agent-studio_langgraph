@@ -8,7 +8,7 @@
 
 - 需求基线：Agent Studio V3.0（对话中确认的产品方向）
 - 交付节奏：阶段 0 工程基础 → 阶段 1 首条真实执行闭环 → 阶段 2 P0 内测 → 阶段 3 商业化公测
-- 主技术路线：Next.js / TypeScript + FastAPI / Python + LangGraph（正式运行时）+ PostgreSQL + Redis + MCP
+- 当前技术：Next.js / TypeScript + FastAPI / Python + LangGraph StateGraph + SQLite Checkpoint + 独立单机 Worker；未来迁移 PostgreSQL / Redis / MCP。
 - 原则：只有真实模型与真实工具调用才标记为“已运行”；没有凭据时必须明确提示“待配置”。
 
 ## 核心资料
@@ -18,6 +18,7 @@
 - docs/02_ARCHITECTURE.md：技术选型、业务实体、安全与执行状态
 - docs/03_ACCEPTANCE_MATRIX.md：12 个 Agent 要素和端到端验收
 - docs/04_BACKLOG.csv：可导入项目管理工具的任务清单
+- docs/08_LANGGRAPH_IMPLEMENTATION.md：本轮 LangGraph 改造与验证/限制明细
 
 ## 约定
 
@@ -28,40 +29,70 @@
 - 未经明确授权不得部署线上或推送到远程 Git 仓库。
 
 ## 本地启动（Windows PowerShell）
+### 1. 后端环境（首次安装）
 
-### API（终端 1）
+```powershell
+cd "D:\工作项目\agent studio\services\api"
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.lock.txt
+```
 
-1. cd services/api
-2. 推荐使用 Python 3.12 / 3.13 虚拟环境；开发机器的 Python 3.14 若依赖已满足也可运行。
-3. python -m pip install -r requirements.txt
-4. python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+建议 Python 3.12/3.13；本轮在 Windows Python 3.14 环境中通过安装和测试。真实运行需在 **API 和 Worker 两个进程**的环境里都设置 MODEL_API_KEY；如果使用兼容供应商，另设置 MODEL_BASE_URL / MODEL_NAME。不要把密钥提交到 Git。
 
-打开 http://127.0.0.1:8000/docs 查看 API 文档，http://127.0.0.1:8000/v1/health 查看运行状况。
+### 2. API 服务（终端 1）
 
-### Web（终端 2）
+```powershell
+cd "D:\工作项目\agent studio\services\api"
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+```
 
-1. cd apps/web
-2. npm install
-3. npm run dev
-4. 打开 http://localhost:3000
+API 文档：http://127.0.0.1:8000/docs；健康检查：http://127.0.0.1:8000/v1/health
 
-前端默认请求 http://127.0.0.1:8000；如需修改服务地址，在前端运行环境设置 NEXT_PUBLIC_API_BASE_URL。不要将网站公开部署。
+### 3. LangGraph Worker（终端 2，必须独立运行）
 
-### 真实模型连接
+```powershell
+cd "D:\工作项目\agent studio\services\api"
+.\.venv\Scripts\python.exe -m app.worker
+```
 
-在启动 API 进程前设置 MODEL_API_KEY（使用系统环境或秘密管理器，而不是提交到 Git），必要时设置 MODEL_NAME、MODEL_BASE_URL（默认 OpenAI 兼容 chat completions 接口）。模型未连接时：AI 草稿返回 503；Run 记录 FAILED，绝不会伪造成功。工具目前仅 utc_now 与 add_numbers。
+Worker 从数据库领取任务并执行 StateGraph；与浏览器页面和 API 进程相互独立。关闭浏览器不影响正在运行的 Worker。退出 Worker 后，RUNNING 任务的租约到期会重新排队，由下一个 Worker 从 LangGraph 检查点恢复。当前仅支持一个本地 Worker，检查点采用 SQLite，尚不是生产级多实例方案。
 
-### 自动化验证
+### 4. Web 工作台（终端 3）
 
-- 后端：在 services/api 运行 python -m unittest discover -s tests -v
-- 前端：在 apps/web 运行 npm run typecheck 和 npm run build
+```powershell
+cd "D:\工作项目\agent studio\apps\web"
+npm ci
+npm run dev
+```
+
+打开 http://localhost:3000；前端默认调用 http://127.0.0.1:8000。工作台会提示模型和 Worker 是否在线，并提供任务暂停、取消、重试和查看执行轨迹的操作入口。
+
+### 5. 真实模型连接
+
+在启动 API **和** Worker 之前，分别在两个终端设置模型凭据，例如（仅为环境变量名称示例，不包含真实密钥）：
+
+```powershell
+$env:MODEL_API_KEY="your-own-provider-key"
+$env:MODEL_BASE_URL="https://api.openai.com/v1"
+$env:MODEL_NAME="your-authorized-model"
+```
+
+配置后需重启相应进程。本项目调用实际的 OpenAI 兼容 Chat Completions API；没有凭据时，AI 草稿返回 503，任务返回 FAILED 并保留事件记录，不会生成模拟成功。当前只包含 UTC 时间与浮点加法两种已注册只读工具。**不要使用当前开发版处理真实敏感数据或将服务开放到公网。**
+
+### 6. 自动化验证
+
+- 后端（services/api）：`.\.venv\Scripts\python.exe -m unittest discover -s tests -v`
+- 跨进程集成（services/api）：`.\.venv\Scripts\python.exe ..\..\scripts\smoke_process.py`
+- 前端（apps/web）：`npm run typecheck`、`npm run build`
+
+跨进程集成测试会启动一个独立 Worker 和临时的**模型协议模拟服务器**，用于验证真实 HTTP 通信、队列、LangGraph 和工具调用链路；它不是与真实大模型供应商的联机验收。
 
 ## 当前已实现 / 未实现
 
-已实现（本地样板）：AgentSpec 的十二字段结构化配置、基本校验、保存/查看 Agent、真正的模型 API 适配接口、只读 Tool Registry、基础工具调用事件和本地 SQLite 状态、Web 操作界面及后端自动测试。真实外部模型测试需要你自行配置有效密钥。
+已实现（本地开发版）：12 要素 AgentSpec 结构和校验、Agent 配置保存、OpenAI 兼容模型接入接口、只读 Tool Registry、LangGraph StateGraph、分离 Worker/SQLite 队列与检查点、运行状态恢复/暂停/取消/失败重试、事件追踪及 Web 操作界面。真实外部模型仍需要用户自行授权配置凭据。
 
-未实现（不能上线）：身份认证、多租户、PostgreSQL、LangGraph 持久化 Checkpoint、可靠队列、Agent 版本发布、MCP/OAuth、外部搜索/文档知识库、长期记忆、审批、沙盒、全面评测与计费。运行状态 SUCCEEDED 只代表模型执行完成，不代表结果通过业务质量验收。
+未实现（不能上线）：身份认证、多租户、PostgreSQL、生产级 Redis 队列、多 Worker 并发控制、Agent 版本发布、MCP/OAuth、外部联网搜索、文件知识库、长期记忆、人工审批、沙盒、完整 Eval 与计费。SQLite 检查点仅支持本地单机开发；SUCCEEDED 代表执行流程完成，并不代表业务事实与质量通过评估。
 
 ## 下一步
 
-按 docs/00_IMPLEMENTATION_PLAN.md 的 G0/G1 顺序继续，验收通过后再开始封闭内测功能；不要用当前样板承载用户真实隐私资料。
+接下来按 docs/06_NEXT_ITERATION.md 推进：使用获授权的真实模型验证、PostgreSQL + 不可变 Agent 版本、服务端权限/工作空间隔离、MCP 工具网关和生产级任务调度。未经安全验收不得公开部署。

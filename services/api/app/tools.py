@@ -16,7 +16,7 @@ class AddNumbersArgs(BaseModel):
 ARG_MODELS = {"utc_now": UtcNowArgs, "add_numbers": AddNumbersArgs}
 DESCRIPTIONS = {
     "utc_now": "获取服务器当前 UTC 时间。用于需要真实当前时间的任务。",
-    "add_numbers": "计算两个数的精确加法（浮点范围内）。",
+    "add_numbers": "对两个有限范围内的浮点数执行加法。",
 }
 
 

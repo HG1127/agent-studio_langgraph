@@ -5,7 +5,8 @@ type Spec={schema_version:string;name:string;description:string;goal:{task:strin
 type Agent={id:string;spec:Spec;created_at:string};
 type Run={id:string;agent_id:string;status:string;input:string;output:string|null;error:string|null;created_at:string};
 type Event={seq:number;type:string;payload:Record<string,unknown>;created_at:string};
-type Health={status:string;model_key_configured:boolean;authentication_available:boolean};
+type Checkpoint={available:boolean;model_rounds:number;tool_calls:number;next_nodes:string[];final_status:string|null};
+type Health={status:string;model_key_configured:boolean;authentication_available:boolean;worker_online:boolean;checkpointing:string};
 type Tool={id:string;description:string;risk:string};
 type Page="create"|"agents"|"runs"|"tools";
 async function api<T>(path:string,options?:RequestInit):Promise<T>{
@@ -21,33 +22,33 @@ const templates=[
 ];
 const capabilities=[
  ["Goal / Task","任务目标与成功标准","已建模"],["Context","上下文来源与引用","基础配置"],
- ["Tools","工具注册与使用","本地工具"],["State","状态与运行事件","基础记录"],
- ["Memory","受控长期记忆","待开发"],["Planning","自主规划","基础配置"],
+ ["Tools","工具注册与使用","本地工具"],["State","检查点、暂停与恢复","单机可用"],
+ ["Memory","受控长期记忆","待开发"],["Planning","基础任务规划与执行图","初步实现"],
  ["Tool Calling","真实结构化调用","已接入"],["Permissions","权限与审批","部分实现"],
  ["Environment","沙盒与工作环境","待开发"],["Observability","执行轨迹","基础追踪"],
- ["Evaluation","测试与发布门槛","待开发"],["Stop Condition","限制和终止规则","部分实现"]
+ ["Evaluation","测试与发布门槛","待开发"],["Stop Condition","轮数、时长、工具限额","基础实施"]
 ];
 function manualSpec(task:string):Spec{
  return {schema_version:"1.0",name:"我的自定义助手",description:"手动创建的配置草稿（并非 AI 生成）",execution_mode:"autonomous",
  goal:{task,success_criteria:["提供明确结果，说明没有证据支持的部分"]},
  context:{sources:[],require_citations:false},tools:{enabled:["utc_now","add_numbers"]},
- state:{persistence:"event_log_development",resume_enabled:false},memory:{enabled:false,scope:"none"},
+ state:{persistence:"langgraph_sqlite_development",resume_enabled:true},memory:{enabled:false,scope:"none"},
  planning:{enabled:true,max_replans:1},tool_calling:{structured_arguments:true,retry_limit:1},
  permissions:{allowed_tools:["utc_now","add_numbers"],external_write_allowed:false},
  environment:{profile:"local_read_only"},observability:{trace_enabled:true,redact_secrets:true},
  evaluation:{suite_id:null,enforced:false},stop_conditions:{max_model_rounds:8,max_tool_calls:10,max_duration_seconds:120,max_no_progress_steps:3}};
 }
-const statusLabel:Record<string,string>={QUEUED:"等待执行",RUNNING:"执行中",SUCCEEDED:"执行完成",PARTIAL:"部分完成",FAILED:"执行失败",CANCELED:"已取消"};
+const statusLabel:Record<string,string>={QUEUED:"等待执行",RUNNING:"执行中",PAUSE_REQUESTED:"正在暂停",PAUSED:"已暂停",CANCEL_REQUESTED:"正在取消",SUCCEEDED:"执行完成",PARTIAL:"部分完成",FAILED:"执行失败",CANCELED:"已取消"};
 export default function Home(){
  const [page,setPage]=useState<Page>("create"),[agents,setAgents]=useState<Agent[]>([]),[runs,setRuns]=useState<Run[]>([]),
  [tools,setTools]=useState<Tool[]>([]),[health,setHealth]=useState<Health|null>(null),[connected,setConnected]=useState(false);
  const [description,setDescription]=useState(""),[draft,setDraft]=useState<Spec|null>(null),[working,setWorking]=useState(false);
  const [selectedAgent,setSelectedAgent]=useState<string|null>(null),[selectedRun,setSelectedRun]=useState<string|null>(null);
- const [task,setTask]=useState(""),[events,setEvents]=useState<Event[]>([]);
+ const [task,setTask]=useState(""),[events,setEvents]=useState<Event[]>([]),[checkpoint,setCheckpoint]=useState<Checkpoint|null>(null);
  const [feedback,setFeedback]=useState<{error:boolean;text:string}|null>(null);
  const refresh=useCallback(async()=>{try{const [h,a,r,t]=await Promise.all([api<Health>("/v1/health"),api<Agent[]>("/v1/agents"),api<Run[]>("/v1/runs"),api<Tool[]>("/v1/tools")]);setHealth(h);setAgents(a);setRuns(r);setTools(t);setConnected(true)}catch{setConnected(false)}},[]);
- const refreshRun=useCallback(async(id:string)=>{try{const [r,e]=await Promise.all([api<Run>("/v1/runs/"+id),api<Event[]>("/v1/runs/"+id+"/events")]);setRuns(old=>[r,...old.filter(x=>x.id!==r.id)]);setEvents(e)}catch{/* backend connection indicator appears on refresh */}},[]);
- useEffect(()=>{void refresh()},[refresh]);
+ const refreshRun=useCallback(async(id:string)=>{try{const [r,e,c]=await Promise.all([api<Run>("/v1/runs/"+id),api<Event[]>("/v1/runs/"+id+"/events"),api<Checkpoint>("/v1/runs/"+id+"/checkpoint")]);setRuns(old=>[r,...old.filter(x=>x.id!==r.id)]);setEvents(e);setCheckpoint(c)}catch{/* backend connection indicator appears on refresh */}},[]);
+ useEffect(()=>{void refresh();const timer=window.setInterval(()=>void refresh(),7000);return()=>window.clearInterval(timer)},[refresh]);
  useEffect(()=>{if(!selectedRun)return;void refreshRun(selectedRun);const timer=window.setInterval(()=>void refreshRun(selectedRun),2400);return()=>window.clearInterval(timer)},[selectedRun,refreshRun]);
  async function prepare(ai:boolean){
   if(description.trim().length<5){setFeedback({error:true,text:"请至少用 5 个字描述 Agent 的目标。"});return}
@@ -66,19 +67,30 @@ export default function Home(){
   if(!selectedAgent||!task.trim()){setFeedback({error:true,text:"请先选择 Agent 并填写本次任务。"});return}
   setWorking(true);
   try{const result=await api<Run>("/v1/agents/"+selectedAgent+"/runs",{method:"POST",body:JSON.stringify({input:task})});
-   setSelectedRun(result.id);setPage("runs");setEvents([]);await refresh();setFeedback({error:false,text:"已提交真实执行任务。未配置模型时，后台会明确记录失败。"});
+   setSelectedRun(result.id);setPage("runs");setEvents([]);setCheckpoint(null);await refresh();setFeedback({error:false,text:health?.worker_online?"已加入执行队列。请查看任务轨迹。":"任务已入队，但 Worker 尚未启动。请按 README 启动后台 Worker。"});
   }catch(e){setFeedback({error:true,text:e instanceof Error?e.message:"执行失败"})}finally{setWorking(false)}
+ }
+ async function controlRun(action:"pause"|"resume"|"cancel"|"retry"){
+  if(!selectedRun)return;
+  setWorking(true);setFeedback(null);
+  try{
+   const updated=await api<Run>("/v1/runs/"+selectedRun+"/"+action,{method:"POST"});
+   setRuns(old=>[updated,...old.filter(x=>x.id!==updated.id)]);
+   await refreshRun(selectedRun);
+   const messages={pause:"暂停请求已提交，将在安全步骤边界生效。",resume:"任务已恢复排队。",cancel:"取消请求已提交，将在安全步骤边界生效。",retry:"已重新排队，将从最近的检查点尝试继续。"};
+   setFeedback({error:false,text:messages[action]});
+  }catch(e){setFeedback({error:true,text:e instanceof Error?e.message:"操作失败"})}finally{setWorking(false)}
  }
  const nav:[Page,string,string][]=[["create","AI 创建中心","✦"],["agents","我的 Agents","◉"],["runs","运行中心","▤"],["tools","工具与能力","⌘"]];
  const agent=agents.find(a=>a.id===selectedAgent),current=runs.find(r=>r.id===selectedRun);
  return <div className="shell">
   <aside className="sidebar"><div className="brand"><span className="brand-icon">✦</span><div><strong>Agent Studio</strong><small>Build · Run · Improve</small></div></div>
    <div className="nav-head">WORKSPACE</div><nav>{nav.map(([key,title,icon])=><button key={key} className={"nav "+(page===key?"active":"")} onClick={()=>{setPage(key);setFeedback(null)}}><span>{icon}</span>{title}</button>)}</nav>
-   <div className="side-bottom"><span className={"signal "+(connected?"good":"bad")}/> {connected?"API 已连接":"API 未连接"}<small>本地开发样板 · v0.1</small></div>
+   <div className="side-bottom"><span className={"signal "+(connected?"good":"bad")}/> {connected?"API 已连接":"API 未连接"}<small>本地开发样板 · v0.2</small></div>
   </aside>
   <main className="main"><header className="topbar"><span>Workspace <b>/</b> {nav.find(x=>x[0]===page)?.[1]}</span><div><span className="pill">开发预览</span><span className="user">AS</span></div></header>
    <div className="container">
-    <div className="notice"><strong>本地验证版</strong> · 尚未实现用户登录、多租户隔离、可靠任务恢复及沙盒。请勿公开部署或导入敏感资料。</div>
+    <div className="notice"><strong>本地验证版</strong> · 已接入 LangGraph 单机检查点和独立 Worker，但尚未实现用户登录、多租户隔离、生产级调度及沙盒。请勿公开部署或导入敏感资料。</div><div className="runtime-strip"><span className={"signal "+(health?.worker_online?"good":"bad")}/>{health?.worker_online?"LangGraph Worker 在线":"LangGraph Worker 未运行"}<span>· SQLite 本地检查点（非生产）</span>{!health?.worker_online&&<small>在后端目录运行 python -m app.worker</small>}</div>
     {feedback&&<div className={"feedback "+(feedback.error?"error":"ok")} role="status">{feedback.text}<button aria-label="关闭提示" onClick={()=>setFeedback(null)}>×</button></div>}
     {page==="create"&&<>
      <section className="hero"><div className="eyebrow">AI-NATIVE AGENT BUILDER</div><h1>一句话，创建你的 <em>AI 助手</em></h1>
@@ -105,9 +117,14 @@ export default function Home(){
     {page==="runs"&&<><div className="section-heading title"><div><div className="eyebrow">RUN MONITOR</div><h1>运行中心</h1><p>任务状态、真实工具调用与错误记录</p></div><button className="btn secondary" onClick={()=>void refresh()}>刷新 ↻</button></div>
      <div className="run-grid"><section className="card"><h3>最近的任务</h3>{!runs.length&&<div className="empty">暂无任务</div>}
        {runs.map(r=><button className={"run-item "+(selectedRun===r.id?"selected":"")} key={r.id} onClick={()=>setSelectedRun(r.id)}><strong>{r.input}</strong><small><span className={"status "+r.status.toLowerCase()}>{statusLabel[r.status]||r.status}</span> {new Date(r.created_at).toLocaleString("zh-CN")}</small></button>)}</section>
-       <section className="card">{current?<><div className="section-heading"><h3>任务详情</h3><span className={"status "+current.status.toLowerCase()}>{statusLabel[current.status]||current.status}</span></div><p className="task-quote">{current.input}</p>{current.error&&<p className="error-box">{current.error}</p>}{current.output&&<div className="result"><h3>模型返回的结果</h3><p>{current.output}</p></div>}<h3>执行时间线 · {events.length} 条事件</h3><div className="timeline">{events.map(e=><div key={e.seq} className="event"><b>{e.type}</b><time>{new Date(e.created_at).toLocaleTimeString("zh-CN")}</time><pre>{JSON.stringify(e.payload,null,2)}</pre></div>)}</div></>:<div className="empty">点击左侧任务查看详情</div>}</section></div>
+       <section className="card">{current?<><div className="section-heading"><h3>任务详情</h3><span className={"status "+current.status.toLowerCase()}>{statusLabel[current.status]||current.status}</span></div><p className="task-quote">{current.input}</p><div className="run-controls">
+ {(current.status==="QUEUED"||current.status==="RUNNING")&&<button className="btn secondary" disabled={working} onClick={()=>void controlRun("pause")}>Ⅱ 暂停</button>}
+ {current.status==="PAUSED"&&<button className="btn primary" disabled={working} onClick={()=>void controlRun("resume")}>▷ 恢复执行</button>}
+ {current.status==="FAILED"&&<button className="btn primary" disabled={working} onClick={()=>void controlRun("retry")}>↻ 从检查点重试</button>}
+ {["QUEUED","RUNNING","PAUSED","PAUSE_REQUESTED"].includes(current.status)&&<button className="btn secondary danger" disabled={working} onClick={()=>void controlRun("cancel")}>× 取消</button>}
+ </div>{current.error&&<p className="error-box">{current.error}</p>}{current.output&&<div className="result"><h3>模型返回的结果</h3><p>{current.output}</p></div>}{checkpoint?.available&&<div className="checkpoint-summary"><strong>LangGraph 检查点已保存</strong><span>模型轮次：{checkpoint.model_rounds} · 工具调用：{checkpoint.tool_calls}</span><small>下一步：{checkpoint.next_nodes.length?checkpoint.next_nodes.join("、"):"当前检查点没有待执行节点"}</small></div>}<h3>执行时间线 · {events.length} 条事件</h3><div className="timeline">{events.map(e=><div key={e.seq} className="event"><b>{e.type}</b><time>{new Date(e.created_at).toLocaleTimeString("zh-CN")}</time><pre>{JSON.stringify(e.payload,null,2)}</pre></div>)}</div></>:<div className="empty">点击左侧任务查看详情</div>}</section></div>
     </>}
-    {page==="tools"&&<><div className="section-heading title"><div><div className="eyebrow">TOOL REGISTRY</div><h1>工具与能力中心</h1><p>所有工具需注册并通过服务端权限校验</p></div><span className="pill">本地只读工具</span></div><div className="tool-grid">{tools.map(t=><section className="card" key={t.id}><span className="template-icon">⌘</span><h3>{t.id}</h3><p>{t.description}</p><span className="pill">{t.risk==="read_only"?"只读":t.risk}</span></section>)}</div><section className="card spaced"><h2>安全与能力边界</h2><p>本版具备工具 allowlist 和结构化参数校验，但正式认证、MCP 连接器、人工审批、沙盒与可靠恢复都还在开发计划中。服务端已设置生产模式启动阻断。</p><div className="todo-grid">{["正式身份认证与租户隔离","MCP / OAuth 连接器","人工审批与独立工具沙盒","LangGraph 检查点与 Worker"].map(s=><div key={s}><b>待开发</b><span>{s}</span></div>)}</div></section></>}
+    {page==="tools"&&<><div className="section-heading title"><div><div className="eyebrow">TOOL REGISTRY</div><h1>工具与能力中心</h1><p>所有工具需注册并通过服务端权限校验</p></div><span className="pill">本地只读工具</span></div><div className="tool-grid">{tools.map(t=><section className="card" key={t.id}><span className="template-icon">⌘</span><h3>{t.id}</h3><p>{t.description}</p><span className="pill">{t.risk==="read_only"?"只读":t.risk}</span></section>)}</div><section className="card spaced"><h2>安全与能力边界</h2><p>本版具备工具 allowlist、结构化参数校验和本地 SQLite 检查点恢复；正式认证、MCP 连接器、人工审批、沙盒和生产级可靠调度尚未交付。服务端会阻止生产模式启动。</p><div className="todo-grid">{["正式身份认证与租户隔离","MCP / OAuth 连接器","人工审批与独立工具沙盒","生产级 PostgreSQL 与任务调度"].map(s=><div key={s}><b>待开发</b><span>{s}</span></div>)}</div></section></>}
    </div>
   </main>
  </div>;

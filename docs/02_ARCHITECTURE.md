@@ -76,3 +76,11 @@ POST /v1/agents/{id}/deployments：发布版本。
 ## 开发环境说明
 
 当前 WebCodex Runner 的宿主机为 Windows，Python 3.14；LangGraph/生产镜像计划以 Python 3.12/3.13 锁定版本。开发阶段可使用本地 SQLite 验证 Schema，但多租户/事务/pgvector 必须在 PostgreSQL 集成测试中验收。
+
+## 已实施的运行时边界（2026-10-10）
+
+当前已经实际集成 **LangGraph 1.2.14 StateGraph** 与 **langgraph-checkpoint-sqlite 3.1.1**。流程为 prepare → decide → tools / verify / stop；Web/API 把任务放入本地 SQLite 队列，独立单进程 Worker 执行。每个运行的 LangGraph thread_id 绑定 run_id；异常中断后在租约到期时可从最近节点检查点继续。Run/Event 与图检查点分别保存；GET /v1/runs/{id}/checkpoint 返回非敏感执行摘要。
+
+**单机持久化不等于生产级可靠队列。** 当前不存在 PostgreSQL 多租户、Redis 任务队列、费用预算、外部写操作幂等或人工审批，仅允许两个内置只读工具。SUCCEEDED 只表示图产生非空回答，不等于研究结论经过事实与准确性评价。
+
+**安全阻断：** APP_ENV=production 时拒绝启动；开发 API 只接受 loopback 请求；LangGraph 检查点启用严格 msgpack 反序列化。正式安全/沙盒需要独立开发与验收。

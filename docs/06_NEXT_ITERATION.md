@@ -1,8 +1,10 @@
 # S1 下一迭代执行包（可直接分派工程师）
 
-状态：尚未实施（2026-10-10）
+状态：部分落地（2026-10-10）；本地 LangGraph/SQLite/独立 Worker 已完成基础验证。以下剩余事项需按正式验收继续推进，见 docs/08_LANGGRAPH_IMPLEMENTATION.md。
 
 ## S1 前置条件
+**已实现的局部能力：** N04 的 LangGraph StateGraph 与 SQLite checkpoint、N05 的本地 Worker/Run 状态控制、N07 的 Web 轮询轨迹与操作入口；未实现完整资金预算、PostgreSQL、Redis、SSE、正式权限与浏览器 E2E。
+
 
 - 模型账户由用户自主授权配置：MODEL_API_KEY / MODEL_NAME / MODEL_BASE_URL。禁止将密钥提供给文档、聊天或源码仓库。
 - S0 的开发原型不可对公网开放；本地测试通过不等于具备生产认证。

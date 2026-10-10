@@ -17,7 +17,7 @@ class ModelGateway:
         if not self.api_key:
             raise ModelNotConfigured("模型尚未连接。请设置 MODEL_API_KEY 后再运行；平台不会返回模拟执行结果。")
 
-    def chat(self, messages: list[dict], tools: list[dict] | None = None, json_mode: bool = False) -> dict:
+    def chat(self, messages: list[dict], tools: list[dict] | None = None, json_mode: bool = False, timeout_seconds: float = 60) -> dict:
         payload = {"model": self.model, "messages": messages, "temperature": 0.2}
         if tools:
             payload["tools"] = tools
@@ -25,7 +25,7 @@ class ModelGateway:
         if json_mode:
             payload["response_format"] = {"type": "json_object"}
         try:
-            with httpx.Client(timeout=60) as client:
+            with httpx.Client(timeout=max(1.0, min(float(timeout_seconds), 60.0))) as client:
                 response = client.post(
                     self.base_url + "/chat/completions",
                     json=payload,
