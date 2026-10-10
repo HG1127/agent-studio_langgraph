@@ -8,6 +8,9 @@ The script fails closed on unknown tables/revisions or wrong host/user/database.
 from __future__ import annotations
 
 import os
+import sys
+
+from sqlalchemy.exc import OperationalError
 
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine.url import make_url
@@ -133,8 +136,47 @@ def inspect_database() -> dict:
         engine.dispose()
 
 
-if __name__ == "__main__":
-    result = inspect_database()
+def main() -> int:
+    try:
+        result = inspect_database()
+    except OperationalError as exc:
+        # SQLAlchemy wraps PostgreSQL errors in OperationalError. Exposing the
+        # full traceback adds noise and may disclose connection metadata.
+        # Print only safe, actionable troubleshooting text.
+        detail = str(exc.orig).lower() if exc.orig else ""
+        if "password authentication failed" in detail or "invalid password" in detail:
+            print(
+                "AUTH FAILED: The studio_migrator password was rejected. "
+                "Check /opt/agent-studio-pg/secrets/admin_password on Baota. "
+                "The original generated secret has 64 hexadecimal characters. "
+                "Copy the entire secret into the hidden PowerShell prompt; "
+                "do not type a literal '*' and do not send the password to chat. "
+                "No schema changes were attempted.",
+                file=sys.stderr,
+            )
+        elif "connection refused" in detail or "connection closed" in detail:
+            print(
+                "CONNECTION FAILED: Check that the SSH tunnel on "
+                "127.0.0.1:15429 remains active. No schema changes were attempted.",
+                file=sys.stderr,
+            )
+        else:
+            print(
+                "PostgreSQL connection/authentication failed. "
+                "Verify the SSH tunnel, database account and PostgreSQL logs. "
+                "No schema changes were attempted.",
+                file=sys.stderr,
+            )
+        return 3
+    except RuntimeError as exc:
+        print(f"Preflight blocked: {exc}", file=sys.stderr)
+        return 2
+
     print("PostgreSQL staging preflight (READ ONLY):")
     for key, value in result.items():
         print(f"  {key}: {value}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

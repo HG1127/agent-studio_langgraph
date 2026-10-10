@@ -44,6 +44,13 @@ try {
     $securePassword = Read-Host 'Enter the studio_migrator PostgreSQL password (hidden)' -AsSecureString
     $credential = [System.Management.Automation.PSCredential]::new('studio_migrator', $securePassword)
     $plain = $credential.GetNetworkCredential().Password
+    # Staging was initialized with: openssl rand -hex 32 (64 hex digits).
+    # Fail locally when clipboard/Read-Host submits a truncated credential.
+    # If the database password was intentionally rotated to another format,
+    # update this staging-only validation after verifying the new credential.
+    if ($plain -cnotmatch '^[0-9a-fA-F]{64}$') {
+        throw 'Password input does not match the original 64-character hexadecimal secret. Check clipboard paste and the admin_password file. No database connection attempted.'
+    }
     $encoded = [Uri]::EscapeDataString($plain)
     $url = 'postgresql+psycopg://studio_migrator:' + $encoded + '@127.0.0.1:15429/agent_studio?sslmode=disable'
     $env:STUDIO_POSTGRES_ADMIN_URL = $url

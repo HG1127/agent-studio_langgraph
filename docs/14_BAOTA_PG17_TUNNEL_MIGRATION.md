@@ -44,6 +44,16 @@ cd "D:\工作项目\agent studio"
 
 **在看到完整实际输出前，任何“迁移成功/真实 RLS 通过”的说法都不成立。** 每个命令由用户本地直接运行，助手没有读取/保存数据库密码，也没有代替用户连接或修改远端服务器。
 
+## 2026-10-10：Windows 密码认证失败的修复说明
+
+运行 `& .\scripts\pg_staging.ps1 -Action Check` 后返回 `FATAL: password authentication failed for user studio_migrator`，表示 SSH 隧道已转发到 PostgreSQL，但**提交的数据库密码未通过验证**。Alembic 未开始迁移，数据库数据未被本次 Check 修改。
+
+数据库初次部署生成密码的方法是 `openssl rand -hex 32`，因此原始密码为 **64 位十六进制字符**，存放于宝塔服务器 `/opt/agent-studio-pg/secrets/admin_password`。不要复制包含回车的命令文本、不要输入显示用的 `*`，不要在聊天或截图中公开密码。
+
+更新的 `pg_staging.ps1` 检查隐藏输入必须是完整的 64 位十六进制原始凭据，输入截断时会直接停止，不访问数据库。若密码**已经被主动轮换**为其他格式，应先核实实际新凭据并调整本地检查规则，不要擅自重置密码。SQLAlchemy 密码/连接错误改为简洁、脱敏、可操作的提示，不再倾倒完整 Traceback。
+
+恢复步骤：在宝塔终端自行读取原文件并完整复制密码，在 Windows 新 PowerShell 窗口保持 SSH 隧道运行，进入项目根目录重新执行 `& .\scripts\pg_staging.ps1 -Action Check`。只有当结果为 `schema_state: initial_empty` 和 `safe_for_baseline: True` 才能安排下一步迁移；若完整 64 位密码仍被拒绝，应停止重试并检查是否曾修改数据库角色密码。不得删除数据库或重建容器。
+
 ## 2. 重要安全限制
 
 - `studio_migrator` 是初始化/测试管理员，不能作为 FastAPI/Worker 日常连接账号；

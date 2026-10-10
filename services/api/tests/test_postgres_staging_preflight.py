@@ -3,6 +3,10 @@
 from __future__ import annotations
 
 import importlib.util
+import io
+from contextlib import redirect_stderr
+
+from sqlalchemy.exc import OperationalError
 import os
 import unittest
 from pathlib import Path
@@ -160,6 +164,37 @@ class StagingPreflightTests(unittest.TestCase):
         ):
             with self.assertRaisesRegex(RuntimeError, "Unknown/incomplete"):
                 self.module.inspect_database()
+
+    def test_wrong_password_has_short_actionable_error_without_traceback(self):
+        buffer = io.StringIO()
+        failure = OperationalError(
+            "DB login", {},
+            Exception("FATAL: password authentication failed for user 'studio_migrator'"),
+        )
+        with (
+            patch.object(self.module, "inspect_database", side_effect=failure),
+            redirect_stderr(buffer),
+        ):
+            code = self.module.main()
+        self.assertEqual(code, 3)
+        message = buffer.getvalue()
+        self.assertIn("AUTH FAILED", message)
+        self.assertIn("64 hexadecimal characters", message)
+        self.assertIn("No schema changes", message)
+        self.assertNotIn("Traceback", message)
+
+    def test_closed_ssh_tunnel_has_short_error(self):
+        buffer = io.StringIO()
+        failure = OperationalError(
+            "connect", {}, Exception("connection refused at 127.0.0.1:15429")
+        )
+        with (
+            patch.object(self.module, "inspect_database", side_effect=failure),
+            redirect_stderr(buffer),
+        ):
+            self.assertEqual(self.module.main(), 3)
+        self.assertIn("SSH tunnel", buffer.getvalue())
+        self.assertNotIn("Traceback", buffer.getvalue())
 
     def test_postgres_16_cannot_pass_preflight(self):
         engine, _, _ = self.fake_engine(server_version=160015)
