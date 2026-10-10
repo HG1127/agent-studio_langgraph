@@ -1,0 +1,35 @@
+# dependencies
+node_modules/
+.next/
+dist/
+build/
+*.tsbuildinfo
+# python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+# local databases & files
+*.db
+*.sqlite
+*.sqlite3
+.local/
+data/
+uploads/
+artifacts/
+# environment / credentials
+.env
+.env.*
+!.env.example
+!.env.local.example
+*.pem
+*.key
+# OS and editors
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+# Logs
+*.log
