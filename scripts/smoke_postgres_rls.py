@@ -14,15 +14,27 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 import uuid
+from pathlib import Path
 
-from app.domain.errors import VersionConflict
-from app.domain.specs import AgentSpec, Goal
-from app.infrastructure.postgres.scoped_store import PgScopedStore
-from app.infrastructure.postgres.scoped_run_queue import PgScopedRunQueue
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine.url import make_url
 from sqlalchemy.exc import DBAPIError
+
+
+def _enable_backend_imports() -> None:
+    """Locate the repository's API package when called as scripts/*.py.
+
+    Python sets sys.path[0] to the script directory rather than the caller's
+    working directory. Both the Windows PowerShell launcher and Linux CI
+    invoke this file by path, so the backend needs an explicit import root.
+    """
+    api_root = Path(__file__).resolve().parents[1] / "services" / "api"
+    if not (api_root / "app" / "__init__.py").is_file():
+        raise RuntimeError("Expected services/api/app package was not found")
+    if str(api_root) not in sys.path:
+        sys.path.insert(0, str(api_root))
 
 
 def _verify_local_test_url(value: str) -> None:
@@ -73,6 +85,12 @@ def _must_fail(connection, sql: str, parameters: dict) -> None:
 def main() -> int:
     value = os.environ.get("STUDIO_POSTGRES_TEST_ADMIN_URL", "")
     _verify_local_test_url(value)
+    _enable_backend_imports()
+    from app.domain.errors import VersionConflict
+    from app.domain.specs import AgentSpec, Goal
+    from app.infrastructure.postgres.scoped_run_queue import PgScopedRunQueue
+    from app.infrastructure.postgres.scoped_store import PgScopedStore
+
     engine = create_engine(
         value, pool_pre_ping=True, future=True, connect_args={"connect_timeout": 5}
     )
@@ -212,7 +230,9 @@ def main() -> int:
                 assert store_a.get_run(run_a["id"])["status"] == "SUCCEEDED"
                 final_events = store_a.get_events(run_a["id"])
                 assert [event["type"] for event in final_events] == [
-                    "queued", "worker_claimed", "worker_finished"
+                    "queued",
+                    "worker_claimed",
+                    "worker_finished",
                 ]
                 assert not queue_a.finalize(run_a["id"], attempt=1, status="FAILED")
 
@@ -222,10 +242,7 @@ def main() -> int:
                 first = queue_a.claim_next(worker_id="worker-before-crash")
                 assert first and first["run_id"] == waiting["id"]
                 connection.execute(
-                    text(
-                        "UPDATE runs SET lease_until=now()-interval '5 seconds' "
-                        "WHERE id=:id"
-                    ),
+                    text("UPDATE runs SET lease_until=now()-interval '5 seconds' WHERE id=:id"),
                     {"id": uuid.UUID(waiting["id"])},
                 )
                 recovered = queue_a.recover_expired()
