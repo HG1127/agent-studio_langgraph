@@ -1,4 +1,5 @@
 """A real OpenAI-compatible chat completions model adapter; no fake fallback."""
+
 import json
 import os
 
@@ -15,9 +16,17 @@ class ModelGateway:
         self.base_url = os.getenv("MODEL_BASE_URL", "https://api.openai.com/v1").rstrip("/")
         self.model = os.getenv("MODEL_NAME", "gpt-4.1-mini")
         if not self.api_key:
-            raise ModelNotConfigured("模型尚未连接。请设置 MODEL_API_KEY 后再运行；平台不会返回模拟执行结果。")
+            raise ModelNotConfigured(
+                "模型尚未连接。请设置 MODEL_API_KEY 后再运行；平台不会返回模拟执行结果。"
+            )
 
-    def chat(self, messages: list[dict], tools: list[dict] | None = None, json_mode: bool = False, timeout_seconds: float = 60) -> dict:
+    def chat(
+        self,
+        messages: list[dict],
+        tools: list[dict] | None = None,
+        json_mode: bool = False,
+        timeout_seconds: float = 60,
+    ) -> dict:
         payload = {"model": self.model, "messages": messages, "temperature": 0.2}
         if tools:
             payload["tools"] = tools
@@ -41,14 +50,18 @@ class ModelGateway:
 def generate_draft(description: str):
     """Real model creates high-level data; server builds and validates all 12 dimensions."""
     from .schema import AgentSpec, Goal
+
     gateway = ModelGateway()
     message = gateway.chat(
         [
-            {"role": "system", "content": (
-                "你是 Agent Studio 配置助手。依据用户需求抽取字段并只返回 JSON 对象："
-                "name(2-100字),description,task,success_criteria(至少一项字符串数组)。"
-                "不能声称未授权工具已连接，不能虚构研究结论。"
-            )},
+            {
+                "role": "system",
+                "content": (
+                    "你是 Agent Studio 配置助手。依据用户需求抽取字段并只返回 JSON 对象："
+                    "name(2-100字),description,task,success_criteria(至少一项字符串数组)。"
+                    "不能声称未授权工具已连接，不能虚构研究结论。"
+                ),
+            },
             {"role": "user", "content": description},
         ],
         json_mode=True,

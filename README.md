@@ -19,6 +19,9 @@
 - docs/03_ACCEPTANCE_MATRIX.md：12 个 Agent 要素和端到端验收
 - docs/04_BACKLOG.csv：可导入项目管理工具的任务清单
 - docs/08_LANGGRAPH_IMPLEMENTATION.md：本轮 LangGraph 改造与验证/限制明细
+- AGENTS.md：代码贡献与编码 Agent 操作规则
+- docs/09_CODE_STANDARDS.md：模块架构、代码组织、质量门禁与安全规范
+- docs/10_IMPLEMENTATION_CHANGELOG.md：本轮重构与验收记录
 
 ## 约定
 
@@ -29,10 +32,11 @@
 - 未经明确授权不得部署线上或推送到远程 Git 仓库。
 
 ## 本地启动（Windows PowerShell）
+以下命令均从本项目的 **Git 仓库根目录** 开始；每打开一个新终端，先切换到仓库根目录。这样不依赖任何个人电脑的绝对路径。
 ### 1. 后端环境（首次安装）
 
 ```powershell
-cd "D:\工作项目\agent studio\services\api"
+cd services/api
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.lock.txt
 ```
@@ -42,7 +46,7 @@ python -m venv .venv
 ### 2. API 服务（终端 1）
 
 ```powershell
-cd "D:\工作项目\agent studio\services\api"
+cd services/api
 .\.venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
@@ -51,7 +55,7 @@ API 文档：http://127.0.0.1:8000/docs；健康检查：http://127.0.0.1:8000/v
 ### 3. LangGraph Worker（终端 2，必须独立运行）
 
 ```powershell
-cd "D:\工作项目\agent studio\services\api"
+cd services/api
 .\.venv\Scripts\python.exe -m app.worker
 ```
 
@@ -60,7 +64,7 @@ Worker 从数据库领取任务并执行 StateGraph；与浏览器页面和 API 
 ### 4. Web 工作台（终端 3）
 
 ```powershell
-cd "D:\工作项目\agent studio\apps\web"
+cd apps/web
 npm ci
 npm run dev
 ```
@@ -84,15 +88,17 @@ $env:MODEL_NAME="your-authorized-model"
 - 后端（services/api）：`.\.venv\Scripts\python.exe -m unittest discover -s tests -v`
 - 跨进程集成（services/api）：`.\.venv\Scripts\python.exe ..\..\scripts\smoke_process.py`
 - 前端（apps/web）：`npm run typecheck`、`npm run build`
+- 完整质量门禁（services/api）：先安装 `requirements-dev.txt`，运行 `ruff check .`、`ruff format --check .` 以及 `python ../../scripts/check_architecture.py`
+- 前端规范（apps/web）：`npm run lint`、`npm run format:check`
 
 跨进程集成测试会启动一个独立 Worker 和临时的**模型协议模拟服务器**，用于验证真实 HTTP 通信、队列、LangGraph 和工具调用链路；它不是与真实大模型供应商的联机验收。
 
 ## 当前已实现 / 未实现
 
-已实现（本地开发版）：12 要素 AgentSpec 结构和校验、Agent 配置保存、OpenAI 兼容模型接入接口、只读 Tool Registry、LangGraph StateGraph、分离 Worker/SQLite 队列与检查点、运行状态恢复/暂停/取消/失败重试、事件追踪及 Web 操作界面。真实外部模型仍需要用户自行授权配置凭据。
+已实现（本地开发版）：12 要素 AgentSpec 结构和校验；模块化领域/API/持久化/Harness/前端结构；不可变 Agent 版本、乐观锁和历史 Run 配置快照；OpenAI 兼容模型接入接口；只读 Tool Registry；LangGraph StateGraph；分离 Worker/SQLite 队列与检查点；运行状态恢复/暂停/取消/失败重试、事件追踪及 Web 工作台。真实外部模型仍需要用户自行授权配置凭据。
 
-未实现（不能上线）：身份认证、多租户、PostgreSQL、生产级 Redis 队列、多 Worker 并发控制、Agent 版本发布、MCP/OAuth、外部联网搜索、文件知识库、长期记忆、人工审批、沙盒、完整 Eval 与计费。SQLite 检查点仅支持本地单机开发；SUCCEEDED 代表执行流程完成，并不代表业务事实与质量通过评估。
+未实现（不能上线）：身份认证、多租户、PostgreSQL、生产级 Redis 队列、多 Worker 并发控制、Agent 版本的正式发布/回滚、MCP/OAuth、外部联网搜索、文件知识库、长期记忆、人工审批、沙盒、完整 Eval 与计费。SQLite 检查点仅支持本地单机开发；SUCCEEDED 代表执行流程完成，并不代表事实准确性通过业务评测。
 
 ## 下一步
 
-接下来按 docs/06_NEXT_ITERATION.md 推进：使用获授权的真实模型验证、PostgreSQL + 不可变 Agent 版本、服务端权限/工作空间隔离、MCP 工具网关和生产级任务调度。未经安全验收不得公开部署。
+下一步：使用获授权的真实模型验证、正式 Workspace/Auth、PostgreSQL/Alembic 迁移（本地 SQLite 不可变版本已完成）、MCP 工具网关和生产级任务调度。未经安全验收不得公开部署。

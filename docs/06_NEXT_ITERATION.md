@@ -1,6 +1,7 @@
 # S1 下一迭代执行包（可直接分派工程师）
 
 状态：部分落地（2026-10-10）；本地 LangGraph/SQLite/独立 Worker 已完成基础验证。以下剩余事项需按正式验收继续推进，见 docs/08_LANGGRAPH_IMPLEMENTATION.md。
+**工程结构更新：** 已完成模块化后端/前端拆分；本地 SQLite 不可变 Agent 版本、expected_version 冲突控制、历史 Run 快照和旧库幂等迁移已实现并测试。N01 的 PostgreSQL + Alembic、Workspace/Auth 及线上发布仍未开发。详见 docs/09_CODE_STANDARDS.md 和 docs/10_IMPLEMENTATION_CHANGELOG.md。
 
 ## S1 前置条件
 **已实现的局部能力：** N04 的 LangGraph StateGraph 与 SQLite checkpoint、N05 的本地 Worker/Run 状态控制、N07 的 Web 轮询轨迹与操作入口；未实现完整资金预算、PostgreSQL、Redis、SSE、正式权限与浏览器 E2E。

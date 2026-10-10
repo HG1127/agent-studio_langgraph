@@ -3,7 +3,9 @@
 Polls the durable SQLite queue and executes LangGraph with persistent checkpoints.
 Exactly one worker is supported here; not a multi-user production runner.
 """
+
 from __future__ import annotations
+
 import argparse
 import logging
 import os
@@ -12,7 +14,7 @@ import time
 from threading import Event, Thread
 
 from . import db
-from .runner import process_claimed
+from .harness.executor import process_claimed
 
 
 def main() -> int:
@@ -38,11 +40,11 @@ def main() -> int:
                 # while a slow model request is blocking the graph step.
                 stopping = Event()
 
-                def tick():
-                    while not stopping.wait(5):
+                def tick(active_run_id: str = run_id, stop_event: Event = stopping):
+                    while not stop_event.wait(5):
                         try:
                             db.register_worker(identity)
-                            db.heartbeat(run_id)
+                            db.heartbeat(active_run_id)
                         except Exception:
                             logging.exception("Worker heartbeat failed")
 

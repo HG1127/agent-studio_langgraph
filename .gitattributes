@@ -1,0 +1,4 @@
+# Normalize cross-platform source, docs and generated configuration.
+* text=auto eol=lf
+*.cmd text eol=crlf
+*.bat text eol=crlf

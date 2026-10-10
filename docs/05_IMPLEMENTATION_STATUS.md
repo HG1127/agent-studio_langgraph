@@ -44,3 +44,13 @@
 3. LangGraph + Redis worker + checkpoint 与恢复。
 4. 外部工具网关、安全审批、知识库与记忆。
 5. Eval 发布门槛、零代码体验验证及私有测试部署。
+
+## 2026-10-10 追加：工程规范、模块化重构与不可变版本（最新）
+
+前文 S0 记录保留作为历史，不应把其中“当前未实现版本管理”“只有 9 项测试”等当作最新状态。最新具体实现与验收证据见 `docs/10_IMPLEMENTATION_CHANGELOG.md`。
+
+- 新增 AGENTS.md 与 docs/09_CODE_STANDARDS.md，采用模块化单体分层：domain/application/infrastructure/sqlite/api/routes/harness，并在前端拆分 features/agents、features/runs、features/tools、features/studio。
+- SQLite 实现 agent_versions 不可变记录、乐观锁 expected_version、404/409 错误映射及旧库回填；Run 创建时原子绑定不可变版本与原始配置快照。
+- 前端可查看和创建 Agent 版本，后端兼容 app.db / app.runner 原导入，已有 LangGraph 检查点与只读工具执行未重写。
+- 本地验证：后端 31 项单元测试通过，Python Ruff、架构依赖检查、前端 ESLint/Prettier/TypeScript/Next build 通过；跨进程 Smoke 含版本更新与冲突用例通过。
+- 仍未具备身份认证、生产 PostgreSQL、真正多租户、真实供应商模型调用、浏览器 E2E、沙盒、外部工具审批、发布/计费。因此继续禁止公网部署。

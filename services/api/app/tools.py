@@ -1,5 +1,7 @@
 """Server-owned, read-only tool registry (no model-generated arbitrary code)."""
-from datetime import datetime, timezone
+
+from datetime import UTC, datetime
+
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -22,12 +24,14 @@ DESCRIPTIONS = {
 
 def function_definitions(allowed: list[str]) -> list[dict]:
     return [
-        {"type": "function",
-         "function": {
-             "name": key,
-             "description": DESCRIPTIONS[key],
-             "parameters": ARG_MODELS[key].model_json_schema(),
-         }}
+        {
+            "type": "function",
+            "function": {
+                "name": key,
+                "description": DESCRIPTIONS[key],
+                "parameters": ARG_MODELS[key].model_json_schema(),
+            },
+        }
         for key in allowed
     ]
 
@@ -37,7 +41,7 @@ def execute_tool(name: str, arguments: dict, allowed: set[str]) -> dict:
         raise PermissionError("Tool is not registered and permitted")
     parsed = ARG_MODELS[name].model_validate(arguments)
     if name == "utc_now":
-        return {"utc_iso": datetime.now(timezone.utc).isoformat()}
+        return {"utc_iso": datetime.now(UTC).isoformat()}
     if name == "add_numbers":
         return {"result": parsed.a + parsed.b}
     raise PermissionError("Tool is unavailable")

@@ -2,17 +2,17 @@
 
 No tests pretend to be evidence of live model execution.
 """
+
 import os
 import tempfile
 import unittest
 from unittest.mock import patch
 
-from fastapi.testclient import TestClient
-
 from app import db
 from app.main import app
 from app.runner import process_claimed
 from app.schema import AgentSpec, Goal
+from fastapi.testclient import TestClient
 
 
 class ApiTests(unittest.TestCase):
@@ -20,8 +20,12 @@ class ApiTests(unittest.TestCase):
         self.folder = tempfile.TemporaryDirectory()
         self.env_before = {
             k: os.environ.get(k)
-            for k in ("AGENT_STUDIO_DB_PATH", "AGENT_STUDIO_CHECKPOINT_PATH",
-                      "MODEL_API_KEY", "APP_ENV")
+            for k in (
+                "AGENT_STUDIO_DB_PATH",
+                "AGENT_STUDIO_CHECKPOINT_PATH",
+                "MODEL_API_KEY",
+                "APP_ENV",
+            )
         }
         os.environ["AGENT_STUDIO_DB_PATH"] = os.path.join(self.folder.name, "test.sqlite3")
         for key in ("AGENT_STUDIO_CHECKPOINT_PATH", "MODEL_API_KEY", "APP_ENV"):
@@ -79,8 +83,9 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(self.client.post("/v1/agents", json=spec).status_code, 422)
 
     def test_generated_draft_missing_model_key_is_explicit(self):
-        response = self.client.post("/v1/agents/drafts/generate",
-                                    json={"description": "建立市场研究助手"})
+        response = self.client.post(
+            "/v1/agents/drafts/generate", json={"description": "建立市场研究助手"}
+        )
         self.assertEqual(response.status_code, 503)
         self.assertIn("MODEL_API_KEY", response.json()["detail"])
 
@@ -88,11 +93,12 @@ class ApiTests(unittest.TestCase):
         with patch("app.llm.ModelGateway") as gateway:
             gateway.return_value.chat.return_value = {
                 "content": '{"name":"市场研究 Agent","description":"辅助研究",'
-                           '"task":"对指定主题开展资料研究并输出结论",'
-                           '"success_criteria":["有结论","说明不确定部分"]}'
+                '"task":"对指定主题开展资料研究并输出结论",'
+                '"success_criteria":["有结论","说明不确定部分"]}'
             }
-            response = self.client.post("/v1/agents/drafts/generate",
-                                        json={"description": "创建一个市场研究 Agent"})
+            response = self.client.post(
+                "/v1/agents/drafts/generate", json={"description": "创建一个市场研究 Agent"}
+            )
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["spec"]["name"], "市场研究 Agent")
 
@@ -112,13 +118,19 @@ class ApiTests(unittest.TestCase):
         run_id = self.queue()
         self.claim(run_id)
         answers = [
-            {"content": None, "tool_calls": [
-                {"id": "calc1", "type": "function",
-                 "function": {"name": "add_numbers", "arguments": '{"a":3,"b":5}'}}
-            ]},
+            {
+                "content": None,
+                "tool_calls": [
+                    {
+                        "id": "calc1",
+                        "type": "function",
+                        "function": {"name": "add_numbers", "arguments": '{"a":3,"b":5}'},
+                    }
+                ],
+            },
             {"content": "真实工具返回 8"},
         ]
-        with patch("app.runner.ModelGateway") as gateway:
+        with patch("app.harness.graph.ModelGateway") as gateway:
             gateway.return_value.chat.side_effect = answers
             run = process_claimed(run_id)
         self.assertEqual(run["status"], "SUCCEEDED")
@@ -128,6 +140,7 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(sum(e["type"] == "plan" for e in events), 1)
         # Reopen checkpointer in a second context: persisted across process boundaries.
         from langgraph.checkpoint.sqlite import SqliteSaver
+
         with SqliteSaver.from_conn_string(str(db.checkpoint_path())) as saver:
             saved = saver.get({"configurable": {"thread_id": run_id}})
         self.assertIsNotNone(saved)
@@ -142,13 +155,22 @@ class ApiTests(unittest.TestCase):
     def test_tool_count_limit_keeps_partial_result(self):
         run_id = self.queue(spec=self.example_spec(max_tool_calls=1))
         self.claim(run_id)
-        tool_requests = {"content": None, "tool_calls": [
-            {"id": "one", "type": "function",
-             "function": {"name": "add_numbers", "arguments": '{"a":1,"b":2}'}},
-            {"id": "two", "type": "function",
-             "function": {"name": "add_numbers", "arguments": '{"a":4,"b":5}'}}
-        ]}
-        with patch("app.runner.ModelGateway") as gateway:
+        tool_requests = {
+            "content": None,
+            "tool_calls": [
+                {
+                    "id": "one",
+                    "type": "function",
+                    "function": {"name": "add_numbers", "arguments": '{"a":1,"b":2}'},
+                },
+                {
+                    "id": "two",
+                    "type": "function",
+                    "function": {"name": "add_numbers", "arguments": '{"a":4,"b":5}'},
+                },
+            ],
+        }
+        with patch("app.harness.graph.ModelGateway") as gateway:
             gateway.return_value.chat.return_value = tool_requests
             run = process_claimed(run_id)
         self.assertEqual(run["status"], "PARTIAL")
@@ -158,11 +180,17 @@ class ApiTests(unittest.TestCase):
     def test_limit_model_rounds(self):
         run_id = self.queue(spec=self.example_spec(max_model_rounds=1))
         self.claim(run_id)
-        tool_request = {"content": None, "tool_calls": [
-            {"id": "one", "type": "function",
-             "function": {"name": "utc_now", "arguments": "{}"}}
-        ]}
-        with patch("app.runner.ModelGateway") as gateway:
+        tool_request = {
+            "content": None,
+            "tool_calls": [
+                {
+                    "id": "one",
+                    "type": "function",
+                    "function": {"name": "utc_now", "arguments": "{}"},
+                }
+            ],
+        }
+        with patch("app.harness.graph.ModelGateway") as gateway:
             gateway.return_value.chat.return_value = tool_request
             run = process_claimed(run_id)
         self.assertEqual(run["status"], "PARTIAL")
@@ -170,6 +198,7 @@ class ApiTests(unittest.TestCase):
 
     def test_unknown_and_unauthorized_tools_fail_closed(self):
         from app.tools import execute_tool
+
         with self.assertRaises(PermissionError):
             execute_tool("unknown", {}, {"utc_now"})
         with self.assertRaises(PermissionError):
@@ -209,7 +238,7 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(process_claimed(run_id)["status"], "FAILED")
         self.assertEqual(self.client.post(f"/v1/runs/{run_id}/retry").json()["status"], "QUEUED")
         self.claim(run_id)
-        with patch("app.runner.ModelGateway") as gateway:
+        with patch("app.harness.graph.ModelGateway") as gateway:
             gateway.return_value.chat.return_value = {"content": "重试后恢复完成"}
             result = process_claimed(run_id)
         self.assertEqual(result["status"], "SUCCEEDED")
@@ -219,12 +248,21 @@ class ApiTests(unittest.TestCase):
     def test_worker_crash_restarts_from_checkpoint_not_first_node(self):
         run_id = self.queue()
         self.claim(run_id)
-        tool = {"content": None, "tool_calls": [
-            {"id": "call-crash", "type": "function",
-             "function": {"name": "add_numbers", "arguments": '{"a":20,"b":22}'}}
-        ]}
-        with patch("app.runner.ModelGateway") as gateway:
-            gateway.return_value.chat.side_effect = [tool, KeyboardInterrupt("simulated_worker_death")]
+        tool = {
+            "content": None,
+            "tool_calls": [
+                {
+                    "id": "call-crash",
+                    "type": "function",
+                    "function": {"name": "add_numbers", "arguments": '{"a":20,"b":22}'},
+                }
+            ],
+        }
+        with patch("app.harness.graph.ModelGateway") as gateway:
+            gateway.return_value.chat.side_effect = [
+                tool,
+                KeyboardInterrupt("simulated_worker_death"),
+            ]
             with self.assertRaises(KeyboardInterrupt):
                 process_claimed(run_id)
         self.assertEqual(db.get_run(run_id)["status"], "RUNNING")
@@ -236,7 +274,7 @@ class ApiTests(unittest.TestCase):
                 (run_id,),
             )
         self.assertEqual(db.claim_next("recovery-worker"), run_id)
-        with patch("app.runner.ModelGateway") as gateway:
+        with patch("app.harness.graph.ModelGateway") as gateway:
             gateway.return_value.chat.return_value = {"content": "20 + 22 = 42"}
             result = process_claimed(run_id)
             self.assertEqual(gateway.return_value.chat.call_count, 1)
@@ -269,9 +307,10 @@ class ApiTests(unittest.TestCase):
         run_id = self.queue(spec=self.example_spec(max_duration_seconds=5))
         self.claim(run_id)
         with db.connect() as conn:
-            conn.execute("UPDATE runs SET started_at='2000-01-01T00:00:00+00:00' WHERE id=?",
-                         (run_id,))
-        with patch("app.runner.ModelGateway") as gateway:
+            conn.execute(
+                "UPDATE runs SET started_at='2000-01-01T00:00:00+00:00' WHERE id=?", (run_id,)
+            )
+        with patch("app.harness.graph.ModelGateway") as gateway:
             result = process_claimed(run_id)
             gateway.assert_not_called()
         self.assertEqual(result["status"], "PARTIAL")
@@ -280,11 +319,17 @@ class ApiTests(unittest.TestCase):
     def test_duplicate_tool_no_progress_limit(self):
         run_id = self.queue(spec=self.example_spec(max_no_progress_steps=1))
         self.claim(run_id)
-        repeated = {"content": None, "tool_calls": [
-            {"id": "repeated", "type": "function",
-             "function": {"name": "add_numbers", "arguments": '{"a":1,"b":2}'}}
-        ]}
-        with patch("app.runner.ModelGateway") as gateway:
+        repeated = {
+            "content": None,
+            "tool_calls": [
+                {
+                    "id": "repeated",
+                    "type": "function",
+                    "function": {"name": "add_numbers", "arguments": '{"a":1,"b":2}'},
+                }
+            ],
+        }
+        with patch("app.harness.graph.ModelGateway") as gateway:
             gateway.return_value.chat.return_value = repeated
             result = process_claimed(run_id)
         self.assertEqual(result["status"], "PARTIAL")
@@ -294,12 +339,19 @@ class ApiTests(unittest.TestCase):
     def test_invalid_tool_id_must_be_rejected_before_execution(self):
         run_id = self.queue()
         self.claim(run_id)
-        invalid = {"content": None, "tool_calls": [
-            {"type": "function", "function": {
-                "name": "add_numbers", "arguments": '{"a":7,"b":8}'}
-            }
-        ]}
-        with patch("app.runner.ModelGateway") as gateway, patch("app.runner.execute_tool") as tool:
+        invalid = {
+            "content": None,
+            "tool_calls": [
+                {
+                    "type": "function",
+                    "function": {"name": "add_numbers", "arguments": '{"a":7,"b":8}'},
+                }
+            ],
+        }
+        with (
+            patch("app.harness.graph.ModelGateway") as gateway,
+            patch("app.harness.graph.execute_tool") as tool,
+        ):
             gateway.return_value.chat.return_value = invalid
             result = process_claimed(run_id)
             tool.assert_not_called()
@@ -313,13 +365,17 @@ class ApiTests(unittest.TestCase):
 
     def test_remote_client_rejected_in_development(self):
         # A remote client's peer address cannot access an unauthenticated API.
-        from starlette.requests import Request
         from app.main import local_clients_only
+        from starlette.requests import Request
 
         scope = {
-            "type": "http", "method": "GET", "path": "/v1/health",
-            "headers": [], "client": ("198.51.100.9", 54321),
-            "server": ("127.0.0.1", 8000), "scheme": "http",
+            "type": "http",
+            "method": "GET",
+            "path": "/v1/health",
+            "headers": [],
+            "client": ("198.51.100.9", 54321),
+            "server": ("127.0.0.1", 8000),
+            "scheme": "http",
             "http_version": "1.1",
         }
         request = Request(scope)
@@ -328,17 +384,23 @@ class ApiTests(unittest.TestCase):
             raise AssertionError("Remote request bypassed the loopback filter")
 
         import asyncio
+
         response = asyncio.run(local_clients_only(request, call_next))
         self.assertEqual(response.status_code, 403)
-
 
     def test_pause_after_tool_step_and_resume_from_checkpoint(self):
         run_id = self.queue()
         self.claim(run_id)
-        first = {"content": None, "tool_calls": [
-            {"id": "pause-tool", "type": "function",
-             "function": {"name": "add_numbers", "arguments": '{"a":5,"b":6}'}}
-        ]}
+        first = {
+            "content": None,
+            "tool_calls": [
+                {
+                    "id": "pause-tool",
+                    "type": "function",
+                    "function": {"name": "add_numbers", "arguments": '{"a":5,"b":6}'},
+                }
+            ],
+        }
 
         def pause_while_model_is_running(*args, **kwargs):
             db.request_pause(run_id)
@@ -351,14 +413,14 @@ class ApiTests(unittest.TestCase):
             call_number += 1
             return first if call_number == 1 else pause_while_model_is_running()
 
-        with patch("app.runner.ModelGateway") as gateway:
+        with patch("app.harness.graph.ModelGateway") as gateway:
             gateway.return_value.chat.side_effect = model_answers
             result = process_claimed(run_id)
         self.assertEqual(result["status"], "PAUSED")
         self.assertEqual(sum(e["type"] == "tool_completed" for e in db.get_events(run_id)), 1)
         self.assertEqual(self.client.post(f"/v1/runs/{run_id}/resume").json()["status"], "QUEUED")
         self.claim(run_id)
-        with patch("app.runner.ModelGateway") as gateway:
+        with patch("app.harness.graph.ModelGateway") as gateway:
             gateway.return_value.chat.return_value = {"content": "恢复之后的最终回答"}
             result = process_claimed(run_id)
         self.assertEqual(result["status"], "SUCCEEDED")

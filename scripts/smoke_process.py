@@ -104,6 +104,11 @@ def main():
                 timeout=5,
             )
             assert agent.status_code == 201, agent.text
+            agent_id = agent.json()["id"]
+            version_url = base + "/v1/agents/" + agent_id + "/versions"
+            initial_versions = httpx.get(version_url, timeout=5).json()
+            assert len(initial_versions) == 1 and initial_versions[0]["version"] == 1
+            initial_version_id = initial_versions[0]["id"]
             run = httpx.post(
                 base + "/v1/agents/" + agent.json()["id"] + "/runs",
                 json={"input": "请计算 3 + 5"}, timeout=5,
@@ -111,6 +116,22 @@ def main():
             assert run.status_code == 202, run.text
             run_id = run.json()["id"]
             assert run.json()["status"] == "QUEUED"
+            # Update the Agent before running the already queued task.
+            # The queued run MUST stay attached to v1 and keep its original
+            # immutable execution configuration.
+            revised_spec = agent.json()["spec"]
+            revised_spec["goal"]["task"] = "新版本目标是审查营销行业信息"
+            version = httpx.post(
+                version_url, json={"spec": revised_spec, "expected_version": 1}, timeout=5
+            )
+            assert version.status_code == 201, version.text
+            assert version.json()["version"] == 2
+            assert len(httpx.get(version_url, timeout=5).json()) == 2
+            assert run.json()["agent_version_id"] == initial_version_id
+            stale = httpx.post(
+                version_url, json={"spec": revised_spec, "expected_version": 1}, timeout=5
+            )
+            assert stale.status_code == 409, stale.text
             # Worker runs in its own subprocess, opening and closing checkpoint storage.
             worker = subprocess.run(
                 [sys.executable, "-m", "app.worker", "--once"],
@@ -128,6 +149,7 @@ def main():
             assert checkpoint["available"] and checkpoint["tool_calls"] == 1, checkpoint
             assert httpx.get(base + "/v1/health").json()["worker_online"]
             print("PASS API 200 | Agent 201 | queued Run 202 | Worker subprocess -> SUCCEEDED")
+            print("PASS Agent v1 -> v2 immutable update | optimistic conflict 409 | Run bound to v1")
             print("PASS server-authorized read-only tool | LangGraph SQLite checkpoint | Run events")
             print("NOTE provider is a local HTTP stub; this is not a real LLM or production test.")
         finally:
