@@ -83,6 +83,8 @@ export interface Checkpoint {
 
 export interface Health {
   status: string;
+  database_backend: string;
+  postgres_schema_status: string;
   model_key_configured: boolean;
   authentication_available: boolean;
   worker_online: boolean;

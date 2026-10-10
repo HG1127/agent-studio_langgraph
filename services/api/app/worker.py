@@ -26,6 +26,11 @@ def main() -> int:
         parser.error("--poll must be between 0.2 and 30 seconds")
     if os.getenv("APP_ENV", "development").lower() == "production":
         raise RuntimeError("此 Worker 仅供本地开发；生产环境必须更换经过安全验收的执行服务")
+    if os.getenv("STUDIO_DATABASE_BACKEND", "sqlite").lower() != "sqlite":
+        raise RuntimeError(
+            "PostgreSQL Worker/checkpoint adapter is not yet validated; "
+            "refusing to use the SQLite worker under a PostgreSQL setting"
+        )
     os.environ["LANGGRAPH_STRICT_MSGPACK"] = "true"
     logging.basicConfig(level=logging.INFO)
     db.initialize()

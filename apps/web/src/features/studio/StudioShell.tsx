@@ -43,7 +43,7 @@ export function StudioShell({ studio, auth, children }: Props) {
         <div className="side-bottom">
           <span className={`signal ${studio.connected ? "good" : "bad"}`} />
           {studio.connected ? "API 已连接" : "API 未连接"}
-          <small>本地开发样板 · v0.4</small>
+          <small>本地开发样板 · v0.5（PG Schema）</small>
         </div>
       </aside>
       <main className="main">
@@ -64,13 +64,14 @@ export function StudioShell({ studio, auth, children }: Props) {
         <div className="container">
           <div className="notice">
             <strong>本地验证版</strong> · 已接入 LangGraph 单机检查点和不可变 Agent 版本，
-            当前实现本地登录及工作空间级对象权限校验，仍未通过生产级身份安全审计，且缺少
-            PostgreSQL、独立沙盒和可靠调度。请勿公开部署或导入敏感资料。
+            当前实现本地登录及工作空间级对象权限校验，仍未通过生产级身份安全审计，且缺少 PostgreSQL
+            运行时适配、独立沙盒和可靠调度。PG17/RLS
+            模型已准备但尚未接管数据；请勿公开部署或导入敏感资料。
           </div>
           <div className="runtime-strip">
             <span className={`signal ${studio.health?.worker_online ? "good" : "bad"}`} />
             {studio.health?.worker_online ? "LangGraph Worker 在线" : "LangGraph Worker 未运行"}
-            <span>· SQLite 本地检查点（非生产）</span>
+            <span>· 当前主数据库：SQLite（开发）；PG17 + pgvector 待激活</span>
             {!studio.health?.worker_online && <small>在后端目录运行 python -m app.worker</small>}
           </div>
           {studio.feedback && (

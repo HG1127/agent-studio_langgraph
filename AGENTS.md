@@ -31,3 +31,12 @@
 - 访问 Agent/Run/版本/事件/Checkpoint 的任何新 HTTP API 都必须使用 Scope/Editor/Manager 依赖，不能只凭资源 ID 或客户端声明的角色访问。
 - 业务对象必须带 workspace_id；旧 NULL 数据仅限可信维护操作，不得经用户 API 暴露，也不能进入 Worker 队列。
 - 身份 cookie 只能经本地同源 BFF 代理传递，前端不读取 Cookie 原文；禁止将本地密码登录直接当作生产级身份安全实现。
+
+## PostgreSQL / RLS 工程规则（V0.5）
+
+- 主数据库为 PostgreSQL 17 + pgvector；SQLAlchemy 模型与版本化迁移分别存放在 `app/infrastructure/postgres` 和 `services/api/alembic`。
+- RLS 运行角色必须 `NOLOGIN`、`NOBYPASSRLS`；普通 API/Worker 不得使用数据库迁移管理员账号。
+- PostgreSQL 数据访问需在可信用户和工作空间的同一事务中通过 `SET LOCAL` 赋予上下文；不得只靠前端过滤。
+- 旧 SQLite 数据不能自动归属任何用户；迁移前需审计所有权、执行备份和对账。
+- 真实 PG 服务、RLS、Worker/checkpoint 与数据迁移未经验证时，`STUDIO_DATABASE_BACKEND=postgres` 必须禁止启动，不能静默使用 SQLite。
+- Alembic 离线生成 SQL、ORM 结构测试与未来 CI 配置不等于真实数据库上线；状态披露须准确。

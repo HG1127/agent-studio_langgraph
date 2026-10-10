@@ -16,6 +16,8 @@ def health():
     return {
         "status": "ok",
         "mode": "local_development_only",
+        "database_backend": "sqlite_development",
+        "postgres_schema_status": "prepared_not_activated",
         "model_key_configured": bool(os.getenv("MODEL_API_KEY")),
         "worker_online": db.worker_online(),
         "checkpointing": "langgraph_sqlite_development",

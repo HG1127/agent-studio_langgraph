@@ -1,0 +1,24 @@
+# Local PostgreSQL development. Docker Desktop must be running first.
+# This compose file exposes PostgreSQL to loopback ONLY.
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: agent_studio
+      POSTGRES_USER: studio_migrator
+      POSTGRES_PASSWORD: ${STUDIO_PG_ADMIN_PASSWORD:?Set STUDIO_PG_ADMIN_PASSWORD in an untracked .env}
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256"
+    ports:
+      - "127.0.0.1:54329:5432"
+    volumes:
+      - agentstudio_pg17:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U studio_migrator -d agent_studio"]
+      interval: 5s
+      timeout: 4s
+      retries: 20
+      start_period: 10s
+
+volumes:
+  agentstudio_pg17:

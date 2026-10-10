@@ -21,13 +21,18 @@ from .infrastructure.sqlite.migrations import initialize
 async def lifespan(app: FastAPI):
     if os.getenv("APP_ENV", "development").lower() == "production":
         raise RuntimeError("拒绝启动：尚未完成生产认证和多租户安全隔离")
+    if os.getenv("STUDIO_DATABASE_BACKEND", "sqlite").lower() != "sqlite":
+        raise RuntimeError(
+            "PostgreSQL schema has been prepared but API repositories are not switched; "
+            "refusing to silently fall back to SQLite"
+        )
     initialize()
     yield
 
 
 app = FastAPI(
     title="Agent Studio Development API",
-    version="0.4.0",
+    version="0.5.0-dev",
     lifespan=lifespan,
 )
 

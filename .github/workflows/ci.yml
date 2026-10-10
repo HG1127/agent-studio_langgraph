@@ -19,10 +19,14 @@ jobs:
         run: |
           python -m ruff check .
           python -m ruff format --check .
+          python -m ruff check --config pyproject.toml ../../scripts/plan_sqlite_migration.py ../../scripts/smoke_postgres_rls.py
+          python -m ruff format --check --config pyproject.toml ../../scripts/plan_sqlite_migration.py ../../scripts/smoke_postgres_rls.py
       - name: Architectural dependency rules
         run: python ../../scripts/check_architecture.py
       - name: Backend contract and policy tests
         run: python -m unittest discover -s tests -v
+      - name: PostgreSQL 17 Alembic offline SQL validation
+        run: python -m alembic -c alembic.ini upgrade head --sql > /dev/null
       - name: API-to-Worker integration smoke (stub model only)
         run: python ../../scripts/smoke_process.py
   web:
@@ -65,3 +69,37 @@ jobs:
         run: npm ci --prefix apps/web --no-audit --no-fund
       - name: Same-origin HttpOnly Cookie and Workspace smoke
         run: python scripts/smoke_web_proxy.py
+  postgres-rls-integration:
+    # Entire DB is an ephemeral CI container; password is intentionally TEST-ONLY.
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_DB: agent_studio
+          POSTGRES_USER: studio_migrator
+          POSTGRES_PASSWORD: ci-test-only-not-a-secret
+        ports:
+          - 54329:5432
+        options: >-
+          --health-cmd "pg_isready -U studio_migrator -d agent_studio"
+          --health-interval 5s
+          --health-timeout 4s
+          --health-retries 20
+    defaults:
+      run:
+        working-directory: services/api
+    env:
+      STUDIO_POSTGRES_ADMIN_URL: postgresql+psycopg://studio_migrator:ci-test-only-not-a-secret@127.0.0.1:54329/agent_studio
+      STUDIO_POSTGRES_TEST_ADMIN_URL: postgresql+psycopg://studio_migrator:ci-test-only-not-a-secret@127.0.0.1:54329/agent_studio
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install PostgreSQL integration dependencies
+        run: python -m pip install -r requirements-postgres.txt
+      - name: Apply real PostgreSQL 17 Alembic migration
+        run: python -m alembic -c alembic.ini upgrade head
+      - name: Verify real database RLS and immutability
+        run: python ../../scripts/smoke_postgres_rls.py

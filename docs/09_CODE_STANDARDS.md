@@ -101,3 +101,14 @@ agent studio/
 - 运行 Worker 只可领取归属已确认的 workspace_id 不为空的任务；旧 NULL 数据隔离保留，不由首位注册用户自动继承。
 - 浏览器禁止把会话令牌保存在 LocalStorage 或全局 JS；应通过同源 Next.js 代理 + HttpOnly Cookie，后端保存令牌摘要并支持失效。
 - 本地开发 Cookie 不具备正式 HTTPS、安全审计、密码找回、限速及 PostgreSQL RLS，因此禁止对公网部署。详见 docs/11_WORKSPACE_AUTH.md。
+
+## 11. PostgreSQL 17 + pgvector 规范（V0.5）
+
+- PostgreSQL 是业务权威主数据库；`JSONB` 保存 AgentSpec、`pgvector` 用于知识/记忆向量，不预设错误的统一向量维度。
+- 所有 tenant 表显式带 workspace_id，Run/Agent 和 Event/Run 通过复合外键约束归属；RLS 用非特权角色执行并对缺失 Scope fail-closed。
+- SQLAlchemy 的 `workspace_transaction` 只接受可信后端校验过的 user_id/workspace_id，并在事务内 `set_config(..., true)`，禁止连接池跨用户残留上下文。
+- 不可变版本拒绝 UPDATE/DELETE；RunEvent 仅允许插入/查询，防止修改审计历史。
+- Alembic 迁移是独立冻结的版本文件，不得用 `metadata.create_all()` 替代；破坏性初始降级明确禁止。
+- 普通运行角色 `agentstudio_runtime` 为 NOLOGIN/NOBYPASSRLS，不能直接接触 users/sessions/quarantine。认证服务正式生产账号仍须独立设计。
+- 现有 SQLite 旧无主数据只能隔离保留，不可交给第一个注册账号；转换前必须备份、证明所有权并验证迁移对账。
+- 离线 SQL 测试是 DB1，只有真实 PG/pgvector 环境的数据库权限负向测试才算 DB2。参见 docs/12_POSTGRES_DATABASE_V05.md。

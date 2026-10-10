@@ -8,7 +8,7 @@
 
 - 需求基线：Agent Studio V3.0（对话中确认的产品方向）
 - 交付节奏：阶段 0 工程基础 → 阶段 1 首条真实执行闭环 → 阶段 2 P0 内测 → 阶段 3 商业化公测
-- 当前技术：Next.js / TypeScript + FastAPI / Python + LangGraph StateGraph + SQLite Checkpoint + 独立单机 Worker；未来迁移 PostgreSQL / Redis / MCP。
+- 当前运行：Next.js、FastAPI、LangGraph 与 SQLite 本地 Worker。已新增 PostgreSQL 17 + pgvector 的 SQLAlchemy/Alembic/RLS 数据模型，但 PostgreSQL 还未接管 API 或 Worker；Redis、MCP 后续迭代。
 - 原则：只有真实模型与真实工具调用才标记为“已运行”；没有凭据时必须明确提示“待配置”。
 
 ## 核心资料
@@ -23,6 +23,7 @@
 - docs/09_CODE_STANDARDS.md：模块架构、代码组织、质量门禁与安全规范
 - docs/10_IMPLEMENTATION_CHANGELOG.md：本轮重构与验收记录
 - docs/11_WORKSPACE_AUTH.md：本地认证、工作空间隔离与安全剩余项
+- docs/12_POSTGRES_DATABASE_V05.md：PostgreSQL 17 + pgvector 选型、迁移、RLS 与本地安装测试
 
 ## 约定
 
@@ -96,6 +97,14 @@ $env:MODEL_NAME="your-authorized-model"
 - 前端规范（apps/web）：`npm run lint`、`npm run format:check`
 
 跨进程集成测试会启动一个独立 Worker 和临时的**模型协议模拟服务器**，用于验证真实 HTTP 通信、队列、LangGraph 和工具调用链路；它不是与真实大模型供应商的联机验收。
+
+## PostgreSQL 数据库准备（V0.5）
+
+主数据库已选定 **PostgreSQL 17 + pgvector**。目前仅完成数据模型、Alembic 初始迁移、RLS 定义、SQLite 旧数据只读检查和开发容器配置。Web/API/Worker 仍使用原 SQLite，真实 PostgreSQL 服务与权限尚未在本地验收。
+
+如需进行 PostgreSQL 在线验证，先打开 Docker Desktop、为 `infra/postgres/.env` 配置本地随机密码，再按 `docs/12_POSTGRES_DATABASE_V05.md` 启动容器、执行 Alembic 并运行真实 RLS 测试。数据库连接信息不得写入 Git。
+
+`STUDIO_DATABASE_BACKEND=postgres` 在运行时适配完成之前将明确拒绝启动，不会无提示回退到 SQLite。
 
 ## 当前已实现 / 未实现
 

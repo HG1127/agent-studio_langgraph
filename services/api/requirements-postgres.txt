@@ -1,0 +1,5 @@
+# Incremental V0.5 datastore tooling. SQLite development requirements remain unchanged.
+SQLAlchemy==2.0.54
+alembic==1.20.0
+psycopg[binary]==3.3.6
+pgvector==0.5.1

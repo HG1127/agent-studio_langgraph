@@ -48,3 +48,13 @@
 新增 localhost 本地邮箱/密码认证、scrypt 密码哈希、不可逆会话令牌摘要、HttpOnly SameSite=Strict Cookie、个人与多个工作空间，以及 owner/admin/member/viewer 访问规则。服务端按 workspace 过滤 Agent、版本、Run、事件和检查点，未归属的旧资料保留但隔离。前端加入登录和空间切换，并使用 Next.js 同源 BFF 代理。
 
 新增后端多用户/跨空间/权限/Session 生命周期负向测试，且保留 LangGraph 独立 Worker 集成；Next→FastAPI 同源代理的 HTTP Cookie 链路独立验证（非真实浏览器点击/非正式安全评估）。完整测试数量及最终代码提交以本轮交付结果为准。详情：docs/11_WORKSPACE_AUTH.md。
+
+## 2026-10-10 v0.5 PostgreSQL 数据库底座实施补充
+
+选择 PostgreSQL 17 + pgvector 为最终业务主数据库。新增 SQLAlchemy ORM 模型（12 张表）、第一版 PostgreSQL 专用 Alembic 迁移、JSONB AgentSpec、不可变版本触发器、工作空间复合外键、RunEvent 只追加约束、RLS 角色及权限策略。未来检索使用 pgvector，Redis 单独处理队列/缓存，文件交由对象存储。
+
+工程新增 PG17 开发 Docker Compose、离线迁移测试、事务内 SET LOCAL 范围帮助函数、SQLite 旧数据只读统计工具及仅限本地数据库的 RLS 真实集成测试脚本。CI 新增 pgvector/pg17 容器真实 RLS 测试 Job，尚未推送远程执行。数据库角色受 NOLOGIN/NOBYPASSRLS 限制，不授权普通运行角色访问会话/用户/隔离旧数据。
+
+目前 Docker Desktop Linux Engine 在目标 Windows 环境中未启动，未执行真正 PG 建表或 RLS 在线测试。原 FastAPI、Next.js 和 LangGraph Worker **仍使用 SQLite**；设置 STUDIO_DATABASE_BACKEND=postgres 会 fail-closed 而非假装已经完成迁移。需按照 docs/12_POSTGRES_DATABASE_V05.md 完成 DB2–DB5 实际验收后切换。
+
+本地测试记录：Python 50/50 项通过（含新增 PG schema、Alembic offline、权限配置与安全迁移评估）；已生成可供 DBA 检查的离线 PG17 建库 SQL；Docker Compose config、Ruff、架构约束、Next ESLint 与 build 通过。GitHub Actions postgres-rls-integration Job 已编写但未经远程执行，因此不能声称在线 PG RLS 测试已通过。

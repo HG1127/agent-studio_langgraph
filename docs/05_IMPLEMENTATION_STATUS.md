@@ -54,3 +54,9 @@
 - 前端可查看和创建 Agent 版本，后端兼容 app.db / app.runner 原导入，已有 LangGraph 检查点与只读工具执行未重写。
 - 本地验证：后端 31 项单元测试通过，Python Ruff、架构依赖检查、前端 ESLint/Prettier/TypeScript/Next build 通过；跨进程 Smoke 含版本更新与冲突用例通过。
 - 仍未具备身份认证、生产 PostgreSQL、真正多租户、真实供应商模型调用、浏览器 E2E、沙盒、外部工具审批、发布/计费。因此继续禁止公网部署。
+
+## 2026-10-10 v0.5 后续进展（以本段为最新状态）
+
+前面的“未具备身份认证”是 v0.3 历史记录。v0.4 已具有本地登录与 Workspace 范围授权（非生产 OIDC/MFA）。v0.5 已新增 PostgreSQL 17 + pgvector 的 SQLAlchemy 模型、Alembic 初始版本、RLS、复合外键与开发 Docker 配置。
+
+目前真实 PostgreSQL Docker 引擎未启动，因而 PG 在线建表、迁移后验证、DB 查询权限隔离、Checkpoint 迁移及实际 SQLite 数据导入 **尚未验收**。V0.5 只对迁移离线生成、SQLAlchemy 模型与迁移只读计划做自动化验证。API/Worker 继续用 SQLite，错误切换标志会拒绝启动。详见 docs/12_POSTGRES_DATABASE_V05.md。
