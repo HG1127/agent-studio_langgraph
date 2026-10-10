@@ -5,7 +5,7 @@
 
 [CmdletBinding()]
 param(
-    [ValidateSet('Check', 'Migrate', 'RlsTest')]
+    [ValidateSet('Check', 'Migrate', 'RlsTest', 'RuntimeRoleCheck', 'ProvisionRuntime', 'VerifyRuntime')]
     [string]$Action = 'Check'
 )
 
@@ -98,6 +98,42 @@ try {
                 throw 'RLS integration test failed. Do not activate the PostgreSQL backend.'
             }
             Write-Host 'PostgreSQL RLS integration test passed.'
+        }
+        if ($Action -eq 'RuntimeRoleCheck') {
+            & $python '..\..\scripts\provision_pg_runtime.py' --check
+            if ($LASTEXITCODE -ne 0) {
+                throw 'Runtime account security check failed; no changes were made.'
+            }
+        }
+
+        if ($Action -eq 'ProvisionRuntime') {
+            Write-Host 'CAUTION: Creating a NEW, least-privilege login in the dedicated staging database.'
+            & $python '..\..\scripts\provision_pg_runtime.py' --check
+            if ($LASTEXITCODE -ne 0) {
+                throw 'Runtime role precheck failed; no changes were made.'
+            }
+            $approval = Read-Host 'Type PROVISION to confirm new agentstudio_app login creation'
+            if ($approval -cne 'PROVISION') {
+                Write-Host 'Runtime account creation cancelled; no changes were made.'
+                return
+            }
+            $env:STUDIO_RUNTIME_PROVISION_APPROVED = 'PROVISION'
+            try {
+                & $python '..\..\scripts\provision_pg_runtime.py' --provision
+                if ($LASTEXITCODE -ne 0) {
+                    throw 'Runtime role provisioning failed. Do not retry without reviewing the error.'
+                }
+            }
+            finally {
+                Remove-Item Env:\STUDIO_RUNTIME_PROVISION_APPROVED -ErrorAction SilentlyContinue
+            }
+        }
+
+        if ($Action -eq 'VerifyRuntime') {
+            & $python '..\..\scripts\provision_pg_runtime.py' --verify-login
+            if ($LASTEXITCODE -ne 0) {
+                throw 'Runtime account login security verification failed.'
+            }
         }
     }
     finally {

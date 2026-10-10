@@ -8,7 +8,7 @@
 
 - 需求基线：Agent Studio V3.0（对话中确认的产品方向）
 - 交付节奏：阶段 0 工程基础 → 阶段 1 首条真实执行闭环 → 阶段 2 P0 内测 → 阶段 3 商业化公测
-- 当前运行：Next.js、FastAPI、LangGraph 与 SQLite 本地 Worker。V0.6 已新增 PostgreSQL 17 + pgvector 的事务化 Agent/Version/Run 仓储适配和 Alembic RLS SQL 检查，但 PostgreSQL 尚未接管 API 或 Worker；Redis、MCP 后续迭代。
+- 当前运行：Next.js、FastAPI、LangGraph 与 SQLite 本地 Worker。宝塔独立 PostgreSQL 17 + pgvector 已通过真实 Alembic 初始迁移（12 张业务表）及合成数据回滚的 RLS/Agent/Run/任务租约集成测试；当前仍**未**接管 API、Worker 或 LangGraph Checkpoint。专用低权限数据库登录账号处于待用户确认创建的 staging 阶段；Redis、MCP 后续迭代。
 - 原则：只有真实模型与真实工具调用才标记为“已运行”；没有凭据时必须明确提示“待配置”。
 
 ## 核心资料
@@ -26,6 +26,7 @@
 - docs/12_POSTGRES_DATABASE_V05.md：PostgreSQL 17 + pgvector 选型、迁移、RLS 与本地安装测试
 - docs/13_POSTGRES_V06_ADAPTER.md：PostgreSQL 仓储适配、迁移修复、可重复测试和剩余切换条件
 - docs/14_BAOTA_PG17_TUNNEL_MIGRATION.md：宝塔 PostgreSQL 17 的 Windows SSH 隧道、只读预检、确认迁移和真实 RLS 测试
+- docs/19_PG_RUNTIME_ROLE_SETUP.md：真实数据库 RLS 通过后的独立非管理员运行账号、权限验证与后续安全切换条件
 
 ## 约定
 
