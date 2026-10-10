@@ -13,7 +13,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from .api.routes import agents, runs, system
+from .api.routes import agents, identity, runs, system
 from .infrastructure.sqlite.migrations import initialize
 
 
@@ -27,7 +27,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Agent Studio Development API",
-    version="0.3.0",
+    version="0.4.0",
     lifespan=lifespan,
 )
 
@@ -46,9 +46,23 @@ async def local_clients_only(request: Request, call_next):
     peer = request.client.host if request.client else ""
     if peer not in ("127.0.0.1", "::1", "testclient"):
         return JSONResponse(status_code=403, content={"detail": "开发版本仅允许本机访问"})
-    return await call_next(request)
+    if request.method in ("POST", "PUT", "PATCH", "DELETE"):
+        origin = request.headers.get("origin")
+        if origin and origin not in (
+            "http://localhost:3000",
+            "http://127.0.0.1:3000",
+            "http://127.0.0.1:8000",
+            "http://localhost:8000",
+        ):
+            return JSONResponse(status_code=403, content={"detail": "跨站请求被拒绝"})
+    response = await call_next(request)
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    return response
 
 
 app.include_router(system.router)
+app.include_router(identity.router)
 app.include_router(agents.router)
 app.include_router(runs.router)

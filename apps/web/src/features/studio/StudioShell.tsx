@@ -2,15 +2,18 @@ import type { ReactNode } from "react";
 
 import { navigation } from "@/src/features/studio/catalog";
 import type { useStudio } from "@/src/features/studio/useStudio";
+import type { useSession } from "@/src/features/auth/useSession";
+import { WorkspacePanel } from "@/src/features/auth/WorkspacePanel";
 
 type StudioController = ReturnType<typeof useStudio>;
 
 interface Props {
   studio: StudioController;
+  auth: ReturnType<typeof useSession>;
   children: ReactNode;
 }
 
-export function StudioShell({ studio, children }: Props) {
+export function StudioShell({ studio, auth, children }: Props) {
   const currentPage = navigation.find((item) => item.id === studio.page);
   return (
     <div className="shell">
@@ -36,10 +39,11 @@ export function StudioShell({ studio, children }: Props) {
             </button>
           ))}
         </nav>
+        <WorkspacePanel auth={auth} />
         <div className="side-bottom">
           <span className={`signal ${studio.connected ? "good" : "bad"}`} />
           {studio.connected ? "API 已连接" : "API 未连接"}
-          <small>本地开发样板 · v0.3</small>
+          <small>本地开发样板 · v0.4</small>
         </div>
       </aside>
       <main className="main">
@@ -49,13 +53,19 @@ export function StudioShell({ studio, children }: Props) {
           </span>
           <div>
             <span className="pill">开发预览</span>
-            <span className="user">AS</span>
+            <div className="user-control">
+              <span title={auth.profile?.user.email}>{auth.profile?.user.email}</span>
+              <button type="button" onClick={() => void auth.logout()} disabled={auth.working}>
+                退出登录
+              </button>
+            </div>
           </div>
         </header>
         <div className="container">
           <div className="notice">
             <strong>本地验证版</strong> · 已接入 LangGraph 单机检查点和不可变 Agent 版本，
-            但尚未实现用户登录、多租户隔离、生产级调度及沙盒。请勿公开部署或导入敏感资料。
+            当前实现本地登录及工作空间级对象权限校验，仍未通过生产级身份安全审计，且缺少
+            PostgreSQL、独立沙盒和可靠调度。请勿公开部署或导入敏感资料。
           </div>
           <div className="runtime-strip">
             <span className={`signal ${studio.health?.worker_online ? "good" : "bad"}`} />

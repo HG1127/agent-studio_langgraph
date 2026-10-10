@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-import { request, studioApi } from "@/src/lib/api";
+import { request, scopedRequest, studioApi } from "@/src/lib/api";
 import type {
   Agent,
   AgentSpec,
@@ -22,7 +22,7 @@ const friendlyError = (error: unknown) =>
   error instanceof Error ? error.message : "操作失败，请检查后重试";
 
 /** All stateful network actions are centralized; view components have no fetch calls. */
-export function useStudio() {
+export function useStudio(workspaceId: string, canEdit: boolean) {
   const [page, setPage] = useState<StudioPage>("create");
   const [agents, setAgents] = useState<Agent[]>([]);
   const [versions, setVersions] = useState<AgentVersion[]>([]);
@@ -48,8 +48,8 @@ export function useStudio() {
     try {
       const [newHealth, newAgents, newRuns, newTools] = await Promise.all([
         request<Health>("/v1/health"),
-        request<Agent[]>("/v1/agents"),
-        request<Run[]>("/v1/runs"),
+        scopedRequest<Agent[]>("/v1/agents", workspaceId),
+        scopedRequest<Run[]>("/v1/runs", workspaceId),
         request<StudioTool[]>("/v1/tools"),
       ]);
       setHealth(newHealth);
@@ -60,31 +60,37 @@ export function useStudio() {
     } catch {
       setConnected(false);
     }
-  }, []);
+  }, [workspaceId]);
 
-  const refreshRun = useCallback(async (id: string) => {
-    try {
-      const [run, stream, saved] = await Promise.all([
-        request<Run>(`/v1/runs/${id}`),
-        request<RunEvent[]>(`/v1/runs/${id}/events`),
-        request<Checkpoint>(`/v1/runs/${id}/checkpoint`),
-      ]);
-      setRuns((previous) => [run, ...previous.filter((item) => item.id !== run.id)]);
-      setEvents(stream);
-      setCheckpoint(saved);
-    } catch {
-      setConnected(false);
-    }
-  }, []);
+  const refreshRun = useCallback(
+    async (id: string) => {
+      try {
+        const [run, stream, saved] = await Promise.all([
+          scopedRequest<Run>(`/v1/runs/${id}`, workspaceId),
+          scopedRequest<RunEvent[]>(`/v1/runs/${id}/events`, workspaceId),
+          scopedRequest<Checkpoint>(`/v1/runs/${id}/checkpoint`, workspaceId),
+        ]);
+        setRuns((previous) => [run, ...previous.filter((item) => item.id !== run.id)]);
+        setEvents(stream);
+        setCheckpoint(saved);
+      } catch {
+        setConnected(false);
+      }
+    },
+    [workspaceId],
+  );
 
-  const loadVersions = useCallback(async (agentId: string) => {
-    try {
-      const result = await studioApi.listVersions(agentId);
-      setVersions(result);
-    } catch (error) {
-      setFeedback({ error: true, text: friendlyError(error) });
-    }
-  }, []);
+  const loadVersions = useCallback(
+    async (agentId: string) => {
+      try {
+        const result = await studioApi.listVersions(agentId, workspaceId);
+        setVersions(result);
+      } catch (error) {
+        setFeedback({ error: true, text: friendlyError(error) });
+      }
+    },
+    [workspaceId],
+  );
 
   useEffect(() => {
     // Network synchronization runs after React finishes the effect setup.
@@ -134,7 +140,7 @@ export function useStudio() {
     setFeedback(null);
     try {
       const result = withAI
-        ? (await studioApi.createDraft(description)).spec
+        ? (await studioApi.createDraft(description, workspaceId)).spec
         : manualSpec(description.trim());
       setDraft(result);
       setFeedback({
@@ -153,7 +159,7 @@ export function useStudio() {
     setWorking(true);
     setFeedback(null);
     try {
-      const created = await studioApi.createAgent(draft);
+      const created = await studioApi.createAgent(draft, workspaceId);
       await refresh();
       setSelectedAgentId(created.id);
       setVersionGoal(created.spec.goal.task);
@@ -188,6 +194,7 @@ export function useStudio() {
         selectedAgent.id,
         updatedSpec,
         selectedAgent.current_version,
+        workspaceId,
       );
       await refresh();
       await loadVersions(selectedAgent.id);
@@ -212,7 +219,7 @@ export function useStudio() {
     setWorking(true);
     setFeedback(null);
     try {
-      const created = await studioApi.createRun(selectedAgentId, task.trim());
+      const created = await studioApi.createRun(selectedAgentId, task.trim(), workspaceId);
       setSelectedRunId(created.id);
       setEvents([]);
       setCheckpoint(null);
@@ -236,7 +243,7 @@ export function useStudio() {
     setWorking(true);
     setFeedback(null);
     try {
-      const updated = await request<Run>(`/v1/runs/${selectedRunId}/${action}`, {
+      const updated = await scopedRequest<Run>(`/v1/runs/${selectedRunId}/${action}`, workspaceId, {
         method: "POST",
       });
       setRuns((previous) => [updated, ...previous.filter((run) => run.id !== updated.id)]);
@@ -257,6 +264,7 @@ export function useStudio() {
 
   return {
     page,
+    canEdit,
     navigate,
     agents,
     versions,

@@ -82,7 +82,7 @@ export function RunMonitor({ studio }: Props) {
                   <TaskAction
                     action="pause"
                     label="Ⅱ 暂停"
-                    working={studio.working}
+                    working={studio.working || !studio.canEdit}
                     onClick={studio.controlRun}
                   />
                 )}
@@ -90,7 +90,7 @@ export function RunMonitor({ studio }: Props) {
                   <TaskAction
                     action="resume"
                     label="▷ 恢复执行"
-                    working={studio.working}
+                    working={studio.working || !studio.canEdit}
                     onClick={studio.controlRun}
                   />
                 )}
@@ -98,7 +98,7 @@ export function RunMonitor({ studio }: Props) {
                   <TaskAction
                     action="retry"
                     label="↻ 从检查点重试"
-                    working={studio.working}
+                    working={studio.working || !studio.canEdit}
                     onClick={studio.controlRun}
                   />
                 )}
@@ -106,7 +106,7 @@ export function RunMonitor({ studio }: Props) {
                   <TaskAction
                     action="cancel"
                     label="× 取消"
-                    working={studio.working}
+                    working={studio.working || !studio.canEdit}
                     onClick={studio.controlRun}
                   />
                 )}

@@ -24,6 +24,13 @@ class AgentVersionTests(unittest.TestCase):
         os.environ.pop("AGENT_STUDIO_CHECKPOINT_PATH", None)
         self.client_handle = TestClient(app)
         self.client = self.client_handle.__enter__()
+        auth = self.client.post(
+            "/v1/auth/register",
+            json={"email": "version-tester@example.test", "password": "correct-horse-battery-123"},
+        )
+        self.assertEqual(auth.status_code, 201, auth.text)
+        self.workspace_id = auth.json()["workspaces"][0]["id"]
+        self.client.headers["X-Workspace-ID"] = self.workspace_id
 
     def tearDown(self):
         self.client_handle.__exit__(None, None, None)

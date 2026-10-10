@@ -37,7 +37,8 @@ def claim_next(worker_id: str = "local-worker") -> str | None:
             row["id"]
             for row in connection.execute(
                 """SELECT id FROM runs
-                   WHERE status='RUNNING' AND lease_until IS NOT NULL
+                   WHERE status='RUNNING' AND workspace_id IS NOT NULL
+                     AND lease_until IS NOT NULL
                      AND lease_until<?""",
                 (now,),
             ).fetchall()
@@ -49,16 +50,16 @@ def claim_next(worker_id: str = "local-worker") -> str | None:
             )
         connection.execute(
             """UPDATE runs SET status='PAUSED',lease_until=NULL
-               WHERE status='PAUSE_REQUESTED' AND lease_until<?""",
+               WHERE status='PAUSE_REQUESTED' AND workspace_id IS NOT NULL AND lease_until<?""",
             (now,),
         )
         connection.execute(
             """UPDATE runs SET status='CANCELED',lease_until=NULL,completed_at=?
-               WHERE status='CANCEL_REQUESTED' AND lease_until<?""",
+               WHERE status='CANCEL_REQUESTED' AND workspace_id IS NOT NULL AND lease_until<?""",
             (now, now),
         )
         chosen = connection.execute(
-            """SELECT id FROM runs WHERE status='QUEUED'
+            """SELECT id FROM runs WHERE status='QUEUED' AND workspace_id IS NOT NULL
                ORDER BY created_at LIMIT 1"""
         ).fetchone()
         chosen_id = chosen["id"] if chosen else None

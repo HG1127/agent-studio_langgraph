@@ -1,0 +1,186 @@
+/* Local account and workspace experience; backend owns all authorization. */
+.auth-page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 32px 16px;
+  background: radial-gradient(ellipse at top, #f0edff, #f7f8fb 55%);
+}
+.auth-card {
+  max-width: 450px;
+  width: 100%;
+  padding: 36px;
+  background: #fff;
+  border: 1px solid #e7e7f0;
+  border-radius: 22px;
+  box-shadow: 0 24px 70px #292e621a;
+}
+.auth-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 40px;
+}
+.auth-brand strong {
+  display: block;
+  font-size: 18px;
+  letter-spacing: -0.4px;
+}
+.auth-brand small {
+  display: block;
+  font-size: 11px;
+  color: #9299a7;
+  margin-top: 3px;
+}
+.auth-card h1 {
+  font-size: 28px;
+  letter-spacing: -1px;
+  margin: 10px 0;
+}
+.auth-card p {
+  font-size: 12px;
+  color: #858e9e;
+  line-height: 1.85;
+}
+.auth-card form {
+  margin-top: 26px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+.auth-card label {
+  font-size: 12px;
+  font-weight: 720;
+  color: #3c4454;
+  margin-top: 8px;
+}
+.auth-card input,
+.workspace-panel input,
+.workspace-panel select {
+  border: 1px solid #e1e3ed;
+  border-radius: 10px;
+  padding: 11px 12px;
+  background: #fff;
+  color: #333d4d;
+  min-width: 0;
+  width: 100%;
+  outline-color: #a09aec;
+  font-size: 12px;
+}
+.auth-card input {
+  padding: 14px;
+}
+.auth-submit {
+  margin-top: 14px;
+  width: 100%;
+  font-size: 13px;
+}
+.auth-switch {
+  display: block;
+  margin: 19px auto 24px;
+  border: 0;
+  background: transparent;
+  color: #6159cb;
+  font-weight: 700;
+  font-size: 12px;
+}
+.auth-card .auth-error,
+.workspace-error {
+  background: #fff0f0;
+  color: #ae4f47;
+  border-radius: 8px;
+  padding: 10px;
+  margin: 5px 0;
+  font-size: 11px;
+}
+.auth-disclaimer {
+  border-top: 1px solid #f0f0f6;
+  padding-top: 18px;
+  color: #8b91a2;
+  font-size: 11px;
+  line-height: 1.9;
+}
+.workspace-panel {
+  margin: 6px 0 18px;
+  border-top: 1px solid #eff0f5;
+  padding: 15px 8px;
+}
+.workspace-panel > label,
+.workspace-controls label {
+  font-size: 10px;
+  color: #858b9e;
+  font-weight: 700;
+  display: block;
+  margin-bottom: 7px;
+}
+.workspace-panel > small {
+  color: #959bab;
+  font-size: 10px;
+  display: block;
+  margin-top: 6px;
+}
+.workspace-toggle {
+  border: 0;
+  background: transparent;
+  color: #6a61c8;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 13px 0 5px;
+}
+.workspace-controls {
+  display: grid;
+  gap: 15px;
+  border-top: 1px solid #eeeefa;
+  margin-top: 9px;
+  padding-top: 13px;
+}
+.workspace-controls form {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.workspace-controls button {
+  border: 1px solid #dfdcf7;
+  background: #f3f1ff;
+  color: #6159c5;
+  padding: 9px;
+  border-radius: 9px;
+  font-size: 11px;
+  font-weight: 700;
+}
+.workspace-error {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.user-control {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 11px;
+  color: #687184;
+}
+.user-control button {
+  border: 1px solid #e8e8f1;
+  border-radius: 9px;
+  background: #fff;
+  color: #656c78;
+  padding: 7px 11px;
+  font-size: 11px;
+}
+.user-control span {
+  max-width: 190px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+@media (max-width: 760px) {
+  .auth-card {
+    padding: 26px;
+  }
+  .workspace-panel {
+    padding: 10px 6px;
+  }
+  .user-control span {
+    max-width: 120px;
+  }
+}

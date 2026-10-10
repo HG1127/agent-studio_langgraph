@@ -42,3 +42,9 @@
 ## 4. 推荐下一步
 
 按照以下依赖推进：`正式 Workspace/Auth` → `PostgreSQL + Alembic 不可变版本迁移` → `真实模型授权接入` → `受控 Tool Gateway` → `生产级 Worker 与幂等审批` → `Eval/发布与计费`。每个阶段做真实数据迁移与回归，不要在未验收时宣称生产可用。
+
+## 2026-10-10 v0.4 本地工作空间权限实施补充
+
+新增 localhost 本地邮箱/密码认证、scrypt 密码哈希、不可逆会话令牌摘要、HttpOnly SameSite=Strict Cookie、个人与多个工作空间，以及 owner/admin/member/viewer 访问规则。服务端按 workspace 过滤 Agent、版本、Run、事件和检查点，未归属的旧资料保留但隔离。前端加入登录和空间切换，并使用 Next.js 同源 BFF 代理。
+
+新增后端多用户/跨空间/权限/Session 生命周期负向测试，且保留 LangGraph 独立 Worker 集成；Next→FastAPI 同源代理的 HTTP Cookie 链路独立验证（非真实浏览器点击/非正式安全评估）。完整测试数量及最终代码提交以本轮交付结果为准。详情：docs/11_WORKSPACE_AUTH.md。

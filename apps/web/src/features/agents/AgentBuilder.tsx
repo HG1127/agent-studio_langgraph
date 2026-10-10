@@ -7,6 +7,7 @@ export function AgentBuilder({ studio }: Props) {
   return (
     <>
       <section className="hero">
+        {!studio.canEdit && <p className="auth-error">当前工作空间为只读权限，不能创建 Agent。</p>}
         <div className="eyebrow">AI-NATIVE AGENT BUILDER</div>
         <h1>
           一句话，创建你的 <em>AI 助手</em>
@@ -28,7 +29,7 @@ export function AgentBuilder({ studio }: Props) {
               <button
                 className="btn secondary"
                 type="button"
-                disabled={studio.working}
+                disabled={studio.working || !studio.canEdit}
                 onClick={() => void studio.prepareDraft(false)}
               >
                 手动配置草稿
@@ -36,7 +37,7 @@ export function AgentBuilder({ studio }: Props) {
               <button
                 className="btn primary"
                 type="button"
-                disabled={studio.working}
+                disabled={studio.working || !studio.canEdit}
                 onClick={() => void studio.prepareDraft(true)}
               >
                 {studio.working ? "处理中…" : "✦ AI 生成草案"}
@@ -79,7 +80,7 @@ export function AgentBuilder({ studio }: Props) {
             <button
               type="button"
               className="btn primary"
-              disabled={studio.working}
+              disabled={studio.working || !studio.canEdit}
               onClick={() => void studio.saveDraft()}
             >
               保存为 Agent v1

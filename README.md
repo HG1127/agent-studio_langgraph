@@ -22,6 +22,7 @@
 - AGENTS.md：代码贡献与编码 Agent 操作规则
 - docs/09_CODE_STANDARDS.md：模块架构、代码组织、质量门禁与安全规范
 - docs/10_IMPLEMENTATION_CHANGELOG.md：本轮重构与验收记录
+- docs/11_WORKSPACE_AUTH.md：本地认证、工作空间隔离与安全剩余项
 
 ## 约定
 
@@ -67,9 +68,10 @@ Worker 从数据库领取任务并执行 StateGraph；与浏览器页面和 API 
 cd apps/web
 npm ci
 npm run dev
+# 已强制仅监听 127.0.0.1；严禁开放本地代理至公网
 ```
 
-打开 http://localhost:3000；前端默认调用 http://127.0.0.1:8000。工作台会提示模型和 Worker 是否在线，并提供任务暂停、取消、重试和查看执行轨迹的操作入口。
+打开 http://localhost:3000。首次使用通过邮箱与至少 12 位密码注册个人工作空间，后续登录进入 Studio。前端以同源 /backend 代理访问本地 API，HttpOnly Cookie 不暴露给浏览器 JavaScript。若后端改用其他端口，例如 8019，请在启动 Next.js 前设置 `$env:STUDIO_LOCAL_API_PORT='8019'`。切换工作空间时后台按真实成员权限隔离各自的 Agent、版本、Run。
 
 ### 5. 真实模型连接
 
@@ -85,6 +87,8 @@ $env:MODEL_NAME="your-authorized-model"
 
 ### 6. 自动化验证
 
+- Next.js 同源 Cookie HTTP 集成（services/api）：`\.\\.venv\\Scripts\\python.exe ..\\..\\scripts\\smoke_web_proxy.py`（隔离临时数据库；要求 3000 端口空闲）
+
 - 后端（services/api）：`.\.venv\Scripts\python.exe -m unittest discover -s tests -v`
 - 跨进程集成（services/api）：`.\.venv\Scripts\python.exe ..\..\scripts\smoke_process.py`
 - 前端（apps/web）：`npm run typecheck`、`npm run build`
@@ -95,10 +99,10 @@ $env:MODEL_NAME="your-authorized-model"
 
 ## 当前已实现 / 未实现
 
-已实现（本地开发版）：12 要素 AgentSpec 结构和校验；模块化领域/API/持久化/Harness/前端结构；不可变 Agent 版本、乐观锁和历史 Run 配置快照；OpenAI 兼容模型接入接口；只读 Tool Registry；LangGraph StateGraph；分离 Worker/SQLite 队列与检查点；运行状态恢复/暂停/取消/失败重试、事件追踪及 Web 工作台。真实外部模型仍需要用户自行授权配置凭据。
+已实现（本地开发版）：12 要素 AgentSpec 结构与校验、模块化前后端、不可变 Agent 版本、LangGraph+SQLite 检查点与本地 Worker；新增加 localhost 邮箱/密码登录、哈希 Cookie 会话、个人及多个工作空间、owner/admin/member/viewer 角色，按空间过滤 Agent/Run/执行事件/Checkpoint，并隔离历史无主数据。真实外部模型仍需授权配置。
 
-未实现（不能上线）：身份认证、多租户、PostgreSQL、生产级 Redis 队列、多 Worker 并发控制、Agent 版本的正式发布/回滚、MCP/OAuth、外部联网搜索、文件知识库、长期记忆、人工审批、沙盒、完整 Eval 与计费。SQLite 检查点仅支持本地单机开发；SUCCEEDED 代表执行流程完成，并不代表事实准确性通过业务评测。
+未实现（不能上线）：生产级托管身份认证与 HTTPS、MFA、密码找回、登录限速、审计、PostgreSQL/RLS、Redis 多 Worker、发布/回滚、MCP/OAuth、联网搜索、知识库、长期记忆、审批、隔离沙盒、Eval 与计费。本地 SQLite 空间级权限检查不等于生产级多租户安全验收。
 
 ## 下一步
 
-下一步：使用获授权的真实模型验证、正式 Workspace/Auth、PostgreSQL/Alembic 迁移（本地 SQLite 不可变版本已完成）、MCP 工具网关和生产级任务调度。未经安全验收不得公开部署。
+下一步：PostgreSQL + Alembic/RLS、强化正式身份与安全审计、真实模型授权及费用计量、MCP/搜索只读工具和生产级任务调度；未经验收不得公开部署。

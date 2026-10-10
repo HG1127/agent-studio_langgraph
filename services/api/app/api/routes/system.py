@@ -6,6 +6,7 @@ from fastapi import APIRouter
 
 from ... import db
 from ...tools import DESCRIPTIONS
+from ..dependencies import CurrentUser
 
 router = APIRouter(prefix="/v1", tags=["system"])
 
@@ -19,13 +20,13 @@ def health():
         "worker_online": db.worker_online(),
         "checkpointing": "langgraph_sqlite_development",
         "durable_resume_available": True,
-        "authentication_available": False,
+        "authentication_available": True,
         "production_safe": False,
     }
 
 
 @router.get("/tools")
-def list_tools():
+def list_tools(actor: CurrentUser):
     return [
         {"id": name, "description": description, "risk": "read_only"}
         for name, description in DESCRIPTIONS.items()

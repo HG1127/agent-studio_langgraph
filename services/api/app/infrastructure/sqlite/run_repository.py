@@ -10,39 +10,53 @@ from .event_repository import append_event
 TERMINAL = ("SUCCEEDED", "PARTIAL", "FAILED", "CANCELED")
 
 
-def add_run(agent_id: str, input_text: str) -> dict:
+def add_run(agent_id: str, input_text: str, workspace_id: str) -> dict:
     run_id, created_at = str(uuid.uuid4()), utcnow()
     with connect() as connection:
         connection.execute("BEGIN IMMEDIATE")
         version = connection.execute(
             """SELECT v.id, v.spec FROM agents a JOIN agent_versions v
                ON v.agent_id=a.id AND v.version=a.current_version
-               WHERE a.id=?""",
-            (agent_id,),
+               WHERE a.id=? AND a.workspace_id=?""",
+            (agent_id, workspace_id),
         ).fetchone()
         if version is None:
             raise KeyError("Agent 不存在")
         connection.execute(
             """INSERT INTO runs(
                 id,agent_id,input,status,created_at,spec_snapshot,
-                attempts,agent_version_id
-            ) VALUES (?, ?, ?, 'QUEUED', ?, ?, 0, ?)""",
-            (run_id, agent_id, input_text, created_at, version["spec"], version["id"]),
+                attempts,agent_version_id,workspace_id
+            ) VALUES (?, ?, ?, 'QUEUED', ?, ?, 0, ?, ?)""",
+            (
+                run_id,
+                agent_id,
+                input_text,
+                created_at,
+                version["spec"],
+                version["id"],
+                workspace_id,
+            ),
         )
     append_event(run_id, "queued", {"message": "任务已排队，等待独立 Worker"}, key="queued")
-    return get_run(run_id)
+    return get_run(run_id, workspace_id)
 
 
-def get_run(run_id: str) -> dict | None:
+def get_run(run_id: str, workspace_id: str | None = None) -> dict | None:
     with connect() as connection:
-        row = connection.execute("SELECT * FROM runs WHERE id=?", (run_id,)).fetchone()
+        if workspace_id is None:  # trusted internal Worker only
+            row = connection.execute("SELECT * FROM runs WHERE id=?", (run_id,)).fetchone()
+        else:
+            row = connection.execute(
+                "SELECT * FROM runs WHERE id=? AND workspace_id=?", (run_id, workspace_id)
+            ).fetchone()
     return dict(row) if row else None
 
 
-def list_runs() -> list[dict]:
+def list_runs(workspace_id: str) -> list[dict]:
     with connect() as connection:
         rows = connection.execute(
-            "SELECT * FROM runs ORDER BY created_at DESC LIMIT 100"
+            "SELECT * FROM runs WHERE workspace_id=? ORDER BY created_at DESC LIMIT 100",
+            (workspace_id,),
         ).fetchall()
     return [dict(row) for row in rows]
 
@@ -59,10 +73,13 @@ def heartbeat(run_id: str, lease_seconds: int = 150) -> None:
         )
 
 
-def request_pause(run_id: str) -> dict | None:
+def request_pause(run_id: str, workspace_id: str | None = None) -> dict | None:
     with connect() as connection:
         connection.execute("BEGIN IMMEDIATE")
-        current = connection.execute("SELECT status FROM runs WHERE id=?", (run_id,)).fetchone()
+        current = connection.execute(
+            "SELECT status FROM runs WHERE id=? AND (? IS NULL OR workspace_id=?)",
+            (run_id, workspace_id, workspace_id),
+        ).fetchone()
         if current is None:
             return None
         if current["status"] == "QUEUED":
@@ -72,13 +89,16 @@ def request_pause(run_id: str) -> dict | None:
         elif current["status"] not in ("PAUSED", "PAUSE_REQUESTED"):
             raise ValueError("当前任务状态无法暂停")
     append_event(run_id, "pause_requested", {"message": "暂停请求已记录"})
-    return get_run(run_id)
+    return get_run(run_id, workspace_id)
 
 
-def request_cancel(run_id: str) -> dict | None:
+def request_cancel(run_id: str, workspace_id: str | None = None) -> dict | None:
     with connect() as connection:
         connection.execute("BEGIN IMMEDIATE")
-        current = connection.execute("SELECT status FROM runs WHERE id=?", (run_id,)).fetchone()
+        current = connection.execute(
+            "SELECT status FROM runs WHERE id=? AND (? IS NULL OR workspace_id=?)",
+            (run_id, workspace_id, workspace_id),
+        ).fetchone()
         if current is None:
             return None
         if current["status"] in ("QUEUED", "PAUSED"):
@@ -92,14 +112,17 @@ def request_cancel(run_id: str) -> dict | None:
         elif current["status"] not in ("CANCELED", "CANCEL_REQUESTED"):
             raise ValueError("任务已结束，无法取消")
     append_event(run_id, "cancel_requested", {"message": "取消请求已记录"})
-    return get_run(run_id)
+    return get_run(run_id, workspace_id)
 
 
-def request_resume(run_id: str, retry_failed: bool = False) -> dict | None:
+def request_resume(
+    run_id: str, retry_failed: bool = False, workspace_id: str | None = None
+) -> dict | None:
     with connect() as connection:
         connection.execute("BEGIN IMMEDIATE")
         current = connection.execute(
-            "SELECT status,attempts FROM runs WHERE id=?", (run_id,)
+            "SELECT status,attempts FROM runs WHERE id=? AND (? IS NULL OR workspace_id=?)",
+            (run_id, workspace_id, workspace_id),
         ).fetchone()
         if current is None:
             return None
@@ -118,7 +141,7 @@ def request_resume(run_id: str, retry_failed: bool = False) -> dict | None:
         "retry_queued" if retry_failed else "resumed",
         {"message": "重新进入执行队列"},
     )
-    return get_run(run_id)
+    return get_run(run_id, workspace_id)
 
 
 def settle_control(run_id: str) -> str | None:

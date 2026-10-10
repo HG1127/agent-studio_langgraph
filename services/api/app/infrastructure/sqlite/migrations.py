@@ -43,6 +43,36 @@ def initialize() -> None:
             );
             """
         )
+        connection.executescript("""
+            CREATE TABLE IF NOT EXISTS users(
+                id TEXT PRIMARY KEY, email TEXT NOT NULL UNIQUE,
+                password_hash TEXT NOT NULL, created_at TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS workspaces(
+                id TEXT PRIMARY KEY, name TEXT NOT NULL,
+                created_by TEXT NOT NULL, created_at TEXT NOT NULL,
+                FOREIGN KEY(created_by) REFERENCES users(id)
+            );
+            CREATE TABLE IF NOT EXISTS workspace_members(
+                workspace_id TEXT NOT NULL, user_id TEXT NOT NULL,
+                role TEXT NOT NULL CHECK(role IN ('owner','admin','member','viewer')),
+                created_at TEXT NOT NULL,
+                PRIMARY KEY(workspace_id,user_id),
+                FOREIGN KEY(workspace_id) REFERENCES workspaces(id),
+                FOREIGN KEY(user_id) REFERENCES users(id)
+            );
+            CREATE TABLE IF NOT EXISTS sessions(
+                token_hash TEXT PRIMARY KEY, user_id TEXT NOT NULL,
+                expires_at TEXT NOT NULL, created_at TEXT NOT NULL,
+                FOREIGN KEY(user_id) REFERENCES users(id)
+            );
+        """)
+        # Previously unauthenticated data remains NULL (quarantined).
+        # No automatic ownership assignment is possible or safe.
+        if "workspace_id" not in _columns(connection, "agents"):
+            connection.execute("ALTER TABLE agents ADD COLUMN workspace_id TEXT")
+        if "workspace_id" not in _columns(connection, "runs"):
+            connection.execute("ALTER TABLE runs ADD COLUMN workspace_id TEXT")
         for column, definition in {
             "spec_snapshot": "TEXT",
             "lease_until": "TEXT",
@@ -90,6 +120,19 @@ def initialize() -> None:
         )
         connection.execute("CREATE INDEX IF NOT EXISTS ix_runs_claim ON runs(status, created_at)")
         connection.execute("CREATE INDEX IF NOT EXISTS ix_runs_version ON runs(agent_version_id)")
+        connection.execute("CREATE INDEX IF NOT EXISTS ix_agent_workspace ON agents(workspace_id)")
+        connection.execute("CREATE INDEX IF NOT EXISTS ix_runs_workspace ON runs(workspace_id)")
+        # Only owned Agent rows are eligible for derivation.
+        # Unowned legacy records must remain hidden and never be claimed.
+        connection.execute(
+            """UPDATE runs SET workspace_id=(
+                 SELECT a.workspace_id FROM agents a WHERE a.id=runs.agent_id
+               ) WHERE workspace_id IS NULL AND EXISTS(
+                 SELECT 1 FROM agents a
+                 WHERE a.id=runs.agent_id AND a.workspace_id IS NOT NULL
+               )"""
+        )
+
         connection.execute(
             """CREATE TRIGGER IF NOT EXISTS immutable_agent_version_update
                BEFORE UPDATE ON agent_versions

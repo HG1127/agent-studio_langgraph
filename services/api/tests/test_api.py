@@ -32,6 +32,13 @@ class ApiTests(unittest.TestCase):
             os.environ.pop(key, None)
         self.client_ctx = TestClient(app)
         self.client = self.client_ctx.__enter__()
+        auth = self.client.post(
+            "/v1/auth/register",
+            json={"email": "tester@example.test", "password": "correct-horse-battery-123"},
+        )
+        self.assertEqual(auth.status_code, 201, auth.text)
+        self.workspace_id = auth.json()["workspaces"][0]["id"]
+        self.client.headers["X-Workspace-ID"] = self.workspace_id
 
     def tearDown(self):
         self.client_ctx.__exit__(None, None, None)
@@ -67,7 +74,7 @@ class ApiTests(unittest.TestCase):
     def test_health_and_tools_catalog(self):
         health = self.client.get("/v1/health")
         self.assertEqual(health.status_code, 200)
-        self.assertFalse(health.json()["authentication_available"])
+        self.assertTrue(health.json()["authentication_available"])
         self.assertEqual(health.json()["checkpointing"], "langgraph_sqlite_development")
         self.assertFalse(health.json()["worker_online"])
         self.assertEqual(

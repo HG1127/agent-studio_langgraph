@@ -17,6 +17,7 @@ def _agent(row: sqlite3.Row) -> dict:
         "spec": json.loads(row["spec"]),
         "created_at": row["created_at"],
         "current_version": row["current_version"],
+        "workspace_id": row["workspace_id"],
     }
 
 
@@ -30,15 +31,15 @@ def _version(row: sqlite3.Row) -> dict:
     }
 
 
-def add_agent(spec: AgentSpec) -> dict:
+def add_agent(spec: AgentSpec, workspace_id: str) -> dict:
     agent_id, version_id, created_at = str(uuid.uuid4()), str(uuid.uuid4()), utcnow()
     serialized = spec.model_dump_json()
     with connect() as connection:
         connection.execute("BEGIN IMMEDIATE")
         connection.execute(
-            """INSERT INTO agents(id, spec, created_at, current_version)
-               VALUES (?, ?, ?, 1)""",
-            (agent_id, serialized, created_at),
+            """INSERT INTO agents(id, spec, created_at, current_version, workspace_id)
+               VALUES (?, ?, ?, 1, ?)""",
+            (agent_id, serialized, created_at, workspace_id),
         )
         connection.execute(
             """INSERT INTO agent_versions(id, agent_id, version, spec, created_at)
@@ -50,48 +51,63 @@ def add_agent(spec: AgentSpec) -> dict:
         "spec": spec.model_dump(),
         "created_at": created_at,
         "current_version": 1,
+        "workspace_id": workspace_id,
     }
 
 
-def get_agent(agent_id: str) -> dict | None:
+def get_agent(agent_id: str, workspace_id: str | None = None) -> dict | None:
     with connect() as connection:
-        row = connection.execute("SELECT * FROM agents WHERE id=?", (agent_id,)).fetchone()
+        if workspace_id is None:  # only trusted Worker/tests
+            row = connection.execute("SELECT * FROM agents WHERE id=?", (agent_id,)).fetchone()
+        else:
+            row = connection.execute(
+                "SELECT * FROM agents WHERE id=? AND workspace_id=?",
+                (agent_id, workspace_id),
+            ).fetchone()
     return _agent(row) if row else None
 
 
-def list_agents() -> list[dict]:
+def list_agents(workspace_id: str) -> list[dict]:
     with connect() as connection:
-        rows = connection.execute("SELECT * FROM agents ORDER BY created_at DESC").fetchall()
+        rows = connection.execute(
+            "SELECT * FROM agents WHERE workspace_id=? ORDER BY created_at DESC",
+            (workspace_id,),
+        ).fetchall()
     return [_agent(row) for row in rows]
 
 
-def list_agent_versions(agent_id: str) -> list[dict]:
+def list_agent_versions(agent_id: str, workspace_id: str | None = None) -> list[dict]:
     with connect() as connection:
         rows = connection.execute(
-            """SELECT * FROM agent_versions WHERE agent_id=?
-               ORDER BY version DESC""",
-            (agent_id,),
+            """SELECT v.* FROM agent_versions v JOIN agents a ON v.agent_id=a.id
+               WHERE a.id=? AND (? IS NULL OR a.workspace_id=?)
+               ORDER BY v.version DESC""",
+            (agent_id, workspace_id, workspace_id),
         ).fetchall()
     return [_version(row) for row in rows]
 
 
-def get_agent_version(agent_id: str, version: int) -> dict | None:
+def get_agent_version(agent_id: str, version: int, workspace_id: str) -> dict | None:
     with connect() as connection:
         row = connection.execute(
-            "SELECT * FROM agent_versions WHERE agent_id=? AND version=?",
-            (agent_id, version),
+            """SELECT v.* FROM agent_versions v JOIN agents a ON v.agent_id=a.id
+               WHERE a.id=? AND v.version=? AND a.workspace_id=?""",
+            (agent_id, version, workspace_id),
         ).fetchone()
     return _version(row) if row else None
 
 
-def create_agent_version(agent_id: str, spec: AgentSpec, expected_version: int) -> dict:
+def create_agent_version(
+    agent_id: str, spec: AgentSpec, expected_version: int, workspace_id: str
+) -> dict:
     """Optimistic version check and new snapshot commit form one transaction."""
     version_id, created_at = str(uuid.uuid4()), utcnow()
     serialized = spec.model_dump_json()
     with connect() as connection:
         connection.execute("BEGIN IMMEDIATE")
         current = connection.execute(
-            "SELECT current_version FROM agents WHERE id=?", (agent_id,)
+            "SELECT current_version FROM agents WHERE id=? AND workspace_id=?",
+            (agent_id, workspace_id),
         ).fetchone()
         if current is None:
             raise AgentNotFound("Agent 不存在")
@@ -108,8 +124,8 @@ def create_agent_version(agent_id: str, spec: AgentSpec, expected_version: int) 
         )
         updated = connection.execute(
             """UPDATE agents SET spec=?, current_version=?
-               WHERE id=? AND current_version=?""",
-            (serialized, next_version, agent_id, expected_version),
+               WHERE id=? AND current_version=? AND workspace_id=?""",
+            (serialized, next_version, agent_id, expected_version, workspace_id),
         )
         if updated.rowcount != 1:
             raise VersionConflict("并发更新冲突，未写入新版本")

@@ -95,7 +95,17 @@ def main():
             status = wait_api(base)
             assert status["checkpointing"] == "langgraph_sqlite_development"
             assert status["model_key_configured"]
-            agent = httpx.post(
+            client = httpx.Client(timeout=5)
+            assert client.get(base + "/v1/agents").status_code == 401
+            registered = client.post(
+                base + "/v1/auth/register",
+                json={"email": "smoke@example.test", "password": "smoke-password-12345"},
+            )
+            assert registered.status_code == 201, registered.text
+            workspace_id = registered.json()["workspaces"][0]["id"]
+            client.headers["X-Workspace-ID"] = workspace_id
+
+            agent = client.post(
                 base + "/v1/agents",
                 json={
                     "name": "HTTP 单 Agent 测试",
@@ -106,10 +116,10 @@ def main():
             assert agent.status_code == 201, agent.text
             agent_id = agent.json()["id"]
             version_url = base + "/v1/agents/" + agent_id + "/versions"
-            initial_versions = httpx.get(version_url, timeout=5).json()
+            initial_versions = client.get(version_url, timeout=5).json()
             assert len(initial_versions) == 1 and initial_versions[0]["version"] == 1
             initial_version_id = initial_versions[0]["id"]
-            run = httpx.post(
+            run = client.post(
                 base + "/v1/agents/" + agent.json()["id"] + "/runs",
                 json={"input": "请计算 3 + 5"}, timeout=5,
             )
@@ -121,14 +131,14 @@ def main():
             # immutable execution configuration.
             revised_spec = agent.json()["spec"]
             revised_spec["goal"]["task"] = "新版本目标是审查营销行业信息"
-            version = httpx.post(
+            version = client.post(
                 version_url, json={"spec": revised_spec, "expected_version": 1}, timeout=5
             )
             assert version.status_code == 201, version.text
             assert version.json()["version"] == 2
-            assert len(httpx.get(version_url, timeout=5).json()) == 2
+            assert len(client.get(version_url, timeout=5).json()) == 2
             assert run.json()["agent_version_id"] == initial_version_id
-            stale = httpx.post(
+            stale = client.post(
                 version_url, json={"spec": revised_spec, "expected_version": 1}, timeout=5
             )
             assert stale.status_code == 409, stale.text
@@ -138,21 +148,23 @@ def main():
                 cwd=API_DIR, env=env, timeout=45, capture_output=True, text=True,
             )
             assert worker.returncode == 0, worker.stderr[-1600:]
-            finished = httpx.get(base + "/v1/runs/" + run_id, timeout=5).json()
-            events = httpx.get(base + "/v1/runs/" + run_id + "/events", timeout=5).json()
+            finished = client.get(base + "/v1/runs/" + run_id, timeout=5).json()
+            events = client.get(base + "/v1/runs/" + run_id + "/events", timeout=5).json()
             assert finished["status"] == "SUCCEEDED", finished
             assert "3 + 5 = 8" in finished["output"]
             assert any(e["type"] == "tool_completed" and e["payload"]["result"]["result"] == 8
                        for e in events), events
             assert (Path(directory) / "smoke.checkpoints.sqlite3").exists()
-            checkpoint = httpx.get(base + "/v1/runs/" + run_id + "/checkpoint", timeout=5).json()
+            checkpoint = client.get(base + "/v1/runs/" + run_id + "/checkpoint", timeout=5).json()
             assert checkpoint["available"] and checkpoint["tool_calls"] == 1, checkpoint
-            assert httpx.get(base + "/v1/health").json()["worker_online"]
+            assert client.get(base + "/v1/health").json()["worker_online"]
             print("PASS API 200 | Agent 201 | queued Run 202 | Worker subprocess -> SUCCEEDED")
-            print("PASS Agent v1 -> v2 immutable update | optimistic conflict 409 | Run bound to v1")
+            print("PASS localhost session auth + scoped API | v1 -> v2 optimistic conflict 409 | Run bound to v1")
             print("PASS server-authorized read-only tool | LangGraph SQLite checkpoint | Run events")
             print("NOTE provider is a local HTTP stub; this is not a real LLM or production test.")
         finally:
+            if "client" in locals():
+                client.close()
             api_process.terminate()
             try:
                 api_process.wait(timeout=5)

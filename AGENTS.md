@@ -25,3 +25,9 @@
 - 至少跑一次 `scripts/smoke_process.py`（本地模型协议模拟，不宣称是真实 LLM）。
 - 在 `docs/10_IMPLEMENTATION_CHANGELOG.md` 记录实现内容、验证事实、风险与后续事项。
 - 无用户指示不得推送远程仓库、部署公网或声称已完成生产级安全验收。
+
+## Auth/Workspace 新增硬规则
+
+- 访问 Agent/Run/版本/事件/Checkpoint 的任何新 HTTP API 都必须使用 Scope/Editor/Manager 依赖，不能只凭资源 ID 或客户端声明的角色访问。
+- 业务对象必须带 workspace_id；旧 NULL 数据仅限可信维护操作，不得经用户 API 暴露，也不能进入 Worker 队列。
+- 身份 cookie 只能经本地同源 BFF 代理传递，前端不读取 Cookie 原文；禁止将本地密码登录直接当作生产级身份安全实现。

@@ -93,3 +93,11 @@ agent studio/
 ## 9. 本轮范围与以后补充
 
 本轮先完成工程结构、自动规则、历史迁移与不可变版本能力；OAuth、PostgreSQL、工作空间和真实模型联机仍未完成，不能以“完成分层”替代安全与产品验收。
+
+## 10. 工作空间权限与会话规则（v0.4 追加）
+
+- Agent、Run、版本、执行事件、Checkpoint 等一律要求已登录及服务端 workspace 成员资格校验；HTTP X-Workspace-ID 不是权限凭据，必须逐次验证。
+- Scope 对象隔离应在 Repository 的 WHERE workspace_id 实现，跨 workspace 的对象 ID 一律不可见（404）；未登录 401、无成员资格 403；viewer 禁止写。
+- 运行 Worker 只可领取归属已确认的 workspace_id 不为空的任务；旧 NULL 数据隔离保留，不由首位注册用户自动继承。
+- 浏览器禁止把会话令牌保存在 LocalStorage 或全局 JS；应通过同源 Next.js 代理 + HttpOnly Cookie，后端保存令牌摘要并支持失效。
+- 本地开发 Cookie 不具备正式 HTTPS、安全审计、密码找回、限速及 PostgreSQL RLS，因此禁止对公网部署。详见 docs/11_WORKSPACE_AUTH.md。

@@ -12,7 +12,12 @@ export function AgentLibrary({ studio }: Props) {
           <h1>我的 Agents</h1>
           <p>管理配置版本，为每次执行保留可追溯的版本快照</p>
         </div>
-        <button type="button" className="btn primary" onClick={() => studio.navigate("create")}>
+        <button
+          type="button"
+          className="btn primary"
+          disabled={!studio.canEdit}
+          onClick={() => studio.navigate("create")}
+        >
           + 新建 Agent
         </button>
       </div>
@@ -60,7 +65,7 @@ export function AgentLibrary({ studio }: Props) {
               <button
                 type="button"
                 className="btn primary"
-                disabled={studio.working}
+                disabled={studio.working || !studio.canEdit}
                 onClick={() => void studio.startRun()}
               >
                 ▷ 开始真实执行
@@ -97,7 +102,7 @@ export function AgentLibrary({ studio }: Props) {
               <button
                 type="button"
                 className="btn primary"
-                disabled={studio.working || studio.versionGoal.trim().length < 5}
+                disabled={studio.working || !studio.canEdit || studio.versionGoal.trim().length < 5}
                 onClick={() => void studio.createVersion()}
               >
                 保存为 v{agent.current_version + 1}

@@ -1,6 +1,6 @@
 import type { Agent, AgentSpec, AgentVersion, Run } from "@/src/types/studio";
 
-export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8000";
+export const API_BASE_URL = "/backend";
 
 export class ApiError extends Error {
   constructor(
@@ -20,6 +20,7 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
       ...options.headers,
     },
     cache: "no-store",
+    credentials: "same-origin",
   });
   const raw = await response.text();
   let payload: unknown;
@@ -38,22 +39,34 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
   return payload as T;
 }
 
+export function scopedRequest<T>(
+  path: string,
+  workspaceId: string,
+  options: RequestInit = {},
+): Promise<T> {
+  return request<T>(path, {
+    ...options,
+    headers: { ...options.headers, "X-Workspace-ID": workspaceId },
+  });
+}
+
 export const studioApi = {
-  createDraft: (description: string) =>
-    request<{ spec: AgentSpec }>("/v1/agents/drafts/generate", {
+  createDraft: (description: string, workspaceId: string) =>
+    scopedRequest<{ spec: AgentSpec }>("/v1/agents/drafts/generate", workspaceId, {
       method: "POST",
       body: JSON.stringify({ description }),
     }),
-  createAgent: (spec: AgentSpec) =>
-    request<Agent>("/v1/agents", { method: "POST", body: JSON.stringify(spec) }),
-  listVersions: (id: string) => request<AgentVersion[]>(`/v1/agents/${id}/versions`),
-  createVersion: (id: string, spec: AgentSpec, expectedVersion: number) =>
-    request<AgentVersion>(`/v1/agents/${id}/versions`, {
+  createAgent: (spec: AgentSpec, workspaceId: string) =>
+    scopedRequest<Agent>("/v1/agents", workspaceId, { method: "POST", body: JSON.stringify(spec) }),
+  listVersions: (id: string, workspaceId: string) =>
+    scopedRequest<AgentVersion[]>(`/v1/agents/${id}/versions`, workspaceId),
+  createVersion: (id: string, spec: AgentSpec, expectedVersion: number, workspaceId: string) =>
+    scopedRequest<AgentVersion>(`/v1/agents/${id}/versions`, workspaceId, {
       method: "POST",
       body: JSON.stringify({ expected_version: expectedVersion, spec }),
     }),
-  createRun: (agentId: string, input: string) =>
-    request<Run>(`/v1/agents/${agentId}/runs`, {
+  createRun: (agentId: string, input: string, workspaceId: string) =>
+    scopedRequest<Run>(`/v1/agents/${agentId}/runs`, workspaceId, {
       method: "POST",
       body: JSON.stringify({ input }),
     }),

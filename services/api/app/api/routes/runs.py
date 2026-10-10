@@ -10,6 +10,7 @@ from langgraph.checkpoint.sqlite import SqliteSaver
 from ... import db
 from ...domain.specs import AgentSpec, RunRequest
 from ...harness.graph import build_graph
+from ..dependencies import Editor, Scope
 
 router = APIRouter(prefix="/v1", tags=["runs"])
 
@@ -23,15 +24,15 @@ def _public_run(run: dict) -> dict:
     }
 
 
-def _control(run_id: str, action: str):
+def _control(run_id: str, action: str, workspace_id: str):
     commands = {
-        "pause": db.request_pause,
-        "cancel": db.request_cancel,
-        "resume": db.request_resume,
-        "retry": lambda key: db.request_resume(key, retry_failed=True),
+        "pause": lambda: db.request_pause(run_id, workspace_id),
+        "cancel": lambda: db.request_cancel(run_id, workspace_id),
+        "resume": lambda: db.request_resume(run_id, workspace_id=workspace_id),
+        "retry": lambda: db.request_resume(run_id, retry_failed=True, workspace_id=workspace_id),
     }
     try:
-        updated = commands[action](run_id)
+        updated = commands[action]()
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     if updated is None:
@@ -40,38 +41,42 @@ def _control(run_id: str, action: str):
 
 
 @router.post("/agents/{agent_id}/runs", status_code=202)
-def create_run(agent_id: str, request: RunRequest):
-    if db.get_agent(agent_id) is None:
+def create_run(agent_id: str, request: RunRequest, scope: Editor):
+    if db.get_agent(agent_id, scope.workspace_id) is None:
         raise HTTPException(status_code=404, detail="Agent 不存在")
-    return _public_run(db.add_run(agent_id, request.input))
+    return _public_run(db.add_run(agent_id, request.input, scope.workspace_id))
 
 
 @router.get("/runs")
-def list_runs():
-    return [_public_run(row) for row in db.list_runs()]
+def list_runs(scope: Scope):
+    return [_public_run(row) for row in db.list_runs(scope.workspace_id)]
 
 
 @router.get("/runs/{run_id}")
-def get_run(run_id: str):
-    run = db.get_run(run_id)
+def get_run(run_id: str, scope: Scope):
+    run = db.get_run(run_id, scope.workspace_id)
     if run is None:
         raise HTTPException(status_code=404, detail="任务不存在")
     return _public_run(run)
 
 
 @router.get("/runs/{run_id}/events")
-def get_events(run_id: str, after_seq: int = Query(default=0, ge=0)):
-    if db.get_run(run_id) is None:
+def get_events(
+    run_id: str,
+    scope: Scope,
+    after_seq: int = Query(default=0, ge=0),
+):
+    if db.get_run(run_id, scope.workspace_id) is None:
         raise HTTPException(status_code=404, detail="任务不存在")
     return db.get_events(run_id, after_seq=after_seq)
 
 
 @router.get("/runs/{run_id}/checkpoint")
-def get_checkpoint(run_id: str):
-    run = db.get_run(run_id)
+def get_checkpoint(run_id: str, scope: Scope):
+    run = db.get_run(run_id, scope.workspace_id)
     if run is None:
         raise HTTPException(status_code=404, detail="任务不存在")
-    agent = db.get_agent(run["agent_id"])
+    agent = db.get_agent(run["agent_id"], scope.workspace_id)
     if agent is None:
         raise HTTPException(status_code=404, detail="所属 Agent 不存在")
     spec_data = json.loads(run["spec_snapshot"]) if run.get("spec_snapshot") else agent["spec"]
@@ -91,20 +96,20 @@ def get_checkpoint(run_id: str):
 
 
 @router.post("/runs/{run_id}/pause")
-def pause_run(run_id: str):
-    return _control(run_id, "pause")
+def pause_run(run_id: str, scope: Editor):
+    return _control(run_id, "pause", scope.workspace_id)
 
 
 @router.post("/runs/{run_id}/resume")
-def resume_run(run_id: str):
-    return _control(run_id, "resume")
+def resume_run(run_id: str, scope: Editor):
+    return _control(run_id, "resume", scope.workspace_id)
 
 
 @router.post("/runs/{run_id}/retry")
-def retry_run(run_id: str):
-    return _control(run_id, "retry")
+def retry_run(run_id: str, scope: Editor):
+    return _control(run_id, "retry", scope.workspace_id)
 
 
 @router.post("/runs/{run_id}/cancel")
-def cancel_run(run_id: str):
-    return _control(run_id, "cancel")
+def cancel_run(run_id: str, scope: Editor):
+    return _control(run_id, "cancel", scope.workspace_id)

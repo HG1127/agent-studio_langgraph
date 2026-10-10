@@ -47,3 +47,21 @@ jobs:
         run: npm run typecheck
       - name: Build
         run: npm run build
+  proxy-integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - name: Install API dependencies
+        run: python -m pip install -r services/api/requirements.lock.txt
+      - name: Install Next.js dependencies
+        run: npm ci --prefix apps/web --no-audit --no-fund
+      - name: Same-origin HttpOnly Cookie and Workspace smoke
+        run: python scripts/smoke_web_proxy.py
