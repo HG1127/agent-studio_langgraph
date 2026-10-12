@@ -134,11 +134,15 @@ jobs:
       - run:
           name: Wait for isolated PostgreSQL at localhost
           command: |
-            python - <<'PY'
+            python -c '
             import os
             import time
             from sqlalchemy import create_engine, text
-            engine = create_engine(os.environ["STUDIO_POSTGRES_TEST_ADMIN_URL"], connect_args={"connect_timeout": 3})
+
+            engine = create_engine(
+                os.environ["STUDIO_POSTGRES_TEST_ADMIN_URL"],
+                connect_args={"connect_timeout": 3},
+            )
             try:
                 for attempt in range(40):
                     try:
@@ -152,7 +156,7 @@ jobs:
             finally:
                 engine.dispose()
             print("Ephemeral PG17 is ready")
-            PY
+            '
       - run:
           name: Apply PG17 migrations and verify RLS boundaries
           command: |
