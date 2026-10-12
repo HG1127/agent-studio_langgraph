@@ -1,0 +1,26 @@
+# STAGING TEMPLATE ONLY. Do not deploy until HTTPS OAuth and host safety are verified.
+# Woodpecker controller only: NO agent, NO Docker socket, NO database access.
+name: agentstudio-ci-controller
+services:
+  woodpecker-server:
+    image: woodpeckerci/woodpecker-server:v3
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:18080:8000"
+    volumes:
+      - woodpecker-server-data:/var/lib/woodpecker
+    environment:
+      WOODPECKER_HOST: ${WOODPECKER_HOST:?HTTPS_domain_required}
+      WOODPECKER_GITHUB: "true"
+      WOODPECKER_GITHUB_CLIENT: ${WOODPECKER_GITHUB_CLIENT:?GitHub_OAuth_client_required}
+      WOODPECKER_GITHUB_SECRET: ${WOODPECKER_GITHUB_SECRET:?GitHub_OAuth_secret_required}
+      WOODPECKER_AGENT_SECRET: ${WOODPECKER_AGENT_SECRET:?Random_agent_secret_required}
+      WOODPECKER_ADMIN: ${WOODPECKER_ADMIN:?GitHub_admin_account_required}
+      WOODPECKER_OPEN: "false"
+    mem_limit: 512m
+    cpus: 0.5
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  woodpecker-server-data:

@@ -27,6 +27,7 @@
 - docs/13_POSTGRES_V06_ADAPTER.md：PostgreSQL 仓储适配、迁移修复、可重复测试和剩余切换条件
 - docs/14_BAOTA_PG17_TUNNEL_MIGRATION.md：宝塔 PostgreSQL 17 的 Windows SSH 隧道、只读预检、确认迁移和真实 RLS 测试
 - docs/19_PG_RUNTIME_ROLE_SETUP.md：真实数据库 RLS 通过后的独立非管理员运行账号、权限验证与后续安全切换条件
+- docs/30_FREE_SELF_HOSTED_CI.md：无需 GitHub Actions 托管分钟数的 Windows 隔离 CI、GitHub 提交状态轮询与宝塔独立 CI 规划
 
 ## 约定
 
@@ -35,6 +36,17 @@
 - 开发阶段的本地 SQLite/内存测试不代表 PostgreSQL 多租户或分布式调度已经完成。
 - 测试及审核通过后才能标记里程碑完成。
 - 未经明确授权不得部署线上或推送到远程 Git 仓库。
+
+## 免费本地 CI（已提交的 Git 版本）
+
+使用 Windows PowerShell 从本项目根目录运行：
+
+```powershell
+& .\scripts\ci.ps1 -Mode Quick
+& .\scripts\ci.ps1 -Mode Full
+```
+
+完整本地 CI 使用临时 Git Worktree 与临时 SQLite，独立于运行中的 Web/API，结果保存在忽略 Git 的 `.local/ci/reports/`。Full 包括 LangGraph 本地 HTTP 模型模拟与 Next.js 生产构建，但**不包含真实 PostgreSQL/RLS 或第三方模型联机**。开发分支定时自托管 GitHub Commit Status 和 CI 运行状态见 `docs/30_FREE_SELF_HOSTED_CI.md`。GitHub Actions 托管触发因账号账单限制暂时设为手动，恢复后才允许重新开启自动触发。
 
 ## 本地启动（Windows PowerShell）
 以下命令均从本项目的 **Git 仓库根目录** 开始；每打开一个新终端，先切换到仓库根目录。这样不依赖任何个人电脑的绝对路径。
