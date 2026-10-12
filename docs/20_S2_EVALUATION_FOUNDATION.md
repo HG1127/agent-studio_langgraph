@@ -96,4 +96,3 @@ unittest/Smoke 通过的证据。Ruff 通过不等同运行时测试通过。
 - 本轮再次发起 Smoke 和部分 Web 检查被执行平台安全检查阻断，**未执行成功**，不使用上一轮记录替代新验收。
 - Git 工作区仍有 16 项已修改、14 项未跟踪（包含其他会话工作）；未 reset/stash/clean/commit/push、部署、修改生产数据库、使用收费模型或读取密钥。
 - Codex ACP Run `wc_agent_run_iSXkKuv6Xb2dyj-lICJ0j-g3CoXHbvoqAnUbvLTWwjw` 经独立 observe 为 `completed/end_turn`，但所属持久任务 `wc_agent_task_o3a-AnGBXmkd6KNC` 在 reconcile 时出现 `outcome_unknown`。避免在状态未一致前重复派发同一 Eval 任务。此模块仍未接 API、审批、发布/回滚，验收矩阵 C08 未通过。
-

@@ -30,7 +30,7 @@
 测试可在 `services/api` 运行：
 `./.venv/Scripts/python.exe -B -m unittest discover -s tests -p test_evaluation_gate.py -v`。
 全量单测、Ruff、架构检查和模拟 Smoke 需以实际退出码另行记录。
- 
+
 ## 2026-10-10 本轮实际执行及验收
 
 - 只创建三个互不冲突的文件：领域门槛 `evaluation_gate.py`、11 项合成契约测试 `test_evaluation_gate.py` 和本说明；旧的 Eval 领域文件/测试/原说明、全部其他未提交修改均未覆盖。
@@ -40,4 +40,3 @@
 - 本轮新增前全项目 Ruff format --check 报 62 个文件通过；新增后对新文件的 Ruff check/format --check 和新的架构检查遇执行平台安全检查阻断，**没有通过证据**；对两处长行的手动修正操作同样被阻断。必须在下一轮恢复这些静态质量门禁后才可宣称完成本小模块的全部验收。
 - Git 仍存在其他会话未提交修改；三份新增文件未跟踪、未暂存或提交。旧持久 Eval 任务状态仍为 outcome_unknown，已核对没有权威 terminal 结果，因此没有重新派发它。新功能未接版本发布审批、租户隔离或回滚。
 - 未调用收费模型、未进行外部写入、生产数据库操作、部署、git commit/push 或凭据读取。
-

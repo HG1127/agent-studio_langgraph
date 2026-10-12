@@ -14,4 +14,3 @@
 本模块与旧状态为 `outcome_unknown` 的 Eval 任务范围隔离，不修改原有评测领域文件、数据库及 Web。新增契约测试涵盖稳定重放、正确评分、失败理由、不可比较、缺失/重复/越界、非法类型与不可变性。实际测试与质量检查结果以本轮追加到 `docs/10_IMPLEMENTATION_CHANGELOG.md` 的退出状态为准；无真实 LLM 验收。
 
 2026-10-11 已完成本地验证：本文件对应新增离线契约 **14/14**、后端全量 unittest **152/152**（24.603 秒，退出码 0）、Ruff lint/format（68 文件）、架构检查、模拟 LangGraph Smoke，以及 Web lint/typecheck/build 均通过。WebCodex 的 Codex ACP 编码委托本轮被平台安全检查阻断，改用项目本地结构化编辑；未重试既有 outcome_unknown Eval 持久任务。上述验证仅覆盖离线规则，不证明可信执行来源或正式 C08 发布链路。
-
