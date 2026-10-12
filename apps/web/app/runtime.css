@@ -207,7 +207,10 @@
   background: #f5f4fa;
   padding: 7px 9px;
   color: #50586c;
-  font: 11px/1.65 ui-monospace, Consolas, monospace;
+  font:
+    11px/1.65 ui-monospace,
+    Consolas,
+    monospace;
 }
 .runtime-copy {
   border: 1px solid #dedbf6;

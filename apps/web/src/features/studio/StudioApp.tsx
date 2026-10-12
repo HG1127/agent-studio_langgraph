@@ -5,6 +5,7 @@ import { useSession } from "@/src/features/auth/useSession";
 import { AgentBuilder } from "@/src/features/agents/AgentBuilder";
 import { AgentLibrary } from "@/src/features/agents/AgentLibrary";
 import { RunMonitor } from "@/src/features/runs/RunMonitor";
+import { ModelCenter } from "@/src/features/models/ModelCenter";
 import { StudioShell } from "@/src/features/studio/StudioShell";
 import { useStudio } from "@/src/features/studio/useStudio";
 import { ToolCenter } from "@/src/features/tools/ToolCenter";
@@ -18,6 +19,15 @@ function AuthenticatedStudio({ auth, workspaceId }: { auth: Authentication; work
       {studio.page === "create" && <AgentBuilder studio={studio} />}
       {studio.page === "agents" && <AgentLibrary studio={studio} />}
       {studio.page === "runs" && <RunMonitor studio={studio} />}
+      {studio.page === "models" && (
+        <ModelCenter
+          studio={studio}
+          workspaceId={workspaceId}
+          canManage={
+            auth.currentWorkspace?.role === "owner" || auth.currentWorkspace?.role === "admin"
+          }
+        />
+      )}
       {studio.page === "tools" && <ToolCenter studio={studio} />}
     </StudioShell>
   );

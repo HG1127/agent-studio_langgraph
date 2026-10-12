@@ -22,11 +22,15 @@ def add_run(agent_id: str, input_text: str, workspace_id: str) -> dict:
         ).fetchone()
         if version is None:
             raise KeyError("Agent 不存在")
+        selection = connection.execute(
+            "SELECT id, model_id FROM model_connections WHERE workspace_id=? AND is_default=1",
+            (workspace_id,),
+        ).fetchone()
         connection.execute(
             """INSERT INTO runs(
                 id,agent_id,input,status,created_at,spec_snapshot,
-                attempts,agent_version_id,workspace_id
-            ) VALUES (?, ?, ?, 'QUEUED', ?, ?, 0, ?, ?)""",
+                attempts,agent_version_id,workspace_id,model_connection_id,model_name
+            ) VALUES (?, ?, ?, 'QUEUED', ?, ?, 0, ?, ?, ?, ?)""",
             (
                 run_id,
                 agent_id,
@@ -35,6 +39,8 @@ def add_run(agent_id: str, input_text: str, workspace_id: str) -> dict:
                 version["spec"],
                 version["id"],
                 workspace_id,
+                selection["id"] if selection else None,
+                selection["model_id"] if selection else None,
             ),
         )
     append_event(run_id, "queued", {"message": "任务已排队，等待独立 Worker"}, key="queued")

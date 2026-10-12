@@ -2,6 +2,62 @@
 
 export type ToolId = "utc_now" | "add_numbers";
 
+export type ModelProtocol = "openai" | "anthropic" | "gemini" | "azure_openai";
+
+export interface ModelProvider {
+  id: string;
+  name: string;
+  protocol: ModelProtocol;
+  base_url: string;
+  group: string;
+}
+
+export interface ModelConnection {
+  id: string;
+  provider: string;
+  name: string;
+  protocol: ModelProtocol;
+  base_url: string;
+  model_id: string;
+  is_default: boolean;
+  has_api_key: boolean;
+  last_status: string | null;
+  last_latency_ms: number | null;
+  last_tokens_per_second: number | null;
+  last_tested_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ModelConnectionInput {
+  provider: string;
+  name: string;
+  protocol: ModelProtocol;
+  base_url: string;
+  api_key: string;
+  model_id: string;
+  is_default: boolean;
+}
+
+export interface ModelDiscovery {
+  models: { id: string; name: string }[];
+  source: "provider_api" | "manual";
+  notice: string;
+}
+
+export interface ModelSpeedResult {
+  success: boolean;
+  model_id: string;
+  samples: number;
+  latency_ms: number;
+  min_latency_ms: number;
+  max_latency_ms: number;
+  output_tokens: number | null;
+  effective_tokens_per_second: number | null;
+  usage_reported: boolean;
+  metric_note: string;
+}
+
 export interface AgentSpec {
   schema_version: "1.0";
   name: string;
@@ -97,7 +153,7 @@ export interface StudioTool {
   risk: string;
 }
 
-export type StudioPage = "create" | "agents" | "runs" | "tools";
+export type StudioPage = "create" | "agents" | "runs" | "tools" | "models";
 export type RunAction = "pause" | "resume" | "cancel" | "retry";
 
 export interface Feedback {

@@ -1,4 +1,14 @@
-import type { Agent, AgentSpec, AgentVersion, Run } from "@/src/types/studio";
+import type {
+  Agent,
+  AgentSpec,
+  AgentVersion,
+  ModelConnection,
+  ModelConnectionInput,
+  ModelDiscovery,
+  ModelProvider,
+  ModelSpeedResult,
+  Run,
+} from "@/src/types/studio";
 
 export const API_BASE_URL = "/backend";
 
@@ -51,6 +61,32 @@ export function scopedRequest<T>(
 }
 
 export const studioApi = {
+  listModelProviders: () => request<ModelProvider[]>("/v1/models/providers"),
+  listModelConnections: (workspaceId: string) =>
+    scopedRequest<ModelConnection[]>("/v1/models/connections", workspaceId),
+  createModelConnection: (data: ModelConnectionInput, workspaceId: string) =>
+    scopedRequest<ModelConnection>("/v1/models/connections", workspaceId, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  updateModelConnection: (id: string, data: Partial<ModelConnectionInput>, workspaceId: string) =>
+    scopedRequest<ModelConnection>(`/v1/models/connections/${id}`, workspaceId, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
+  deleteModelConnection: (id: string, workspaceId: string) =>
+    scopedRequest<{ deleted: boolean }>(`/v1/models/connections/${id}`, workspaceId, {
+      method: "DELETE",
+    }),
+  discoverModels: (id: string, workspaceId: string) =>
+    scopedRequest<ModelDiscovery>(`/v1/models/connections/${id}/discover`, workspaceId, {
+      method: "POST",
+    }),
+  testModelConnection: (id: string, modelId: string, samples: number, workspaceId: string) =>
+    scopedRequest<ModelSpeedResult>(`/v1/models/connections/${id}/test`, workspaceId, {
+      method: "POST",
+      body: JSON.stringify({ model_id: modelId, samples }),
+    }),
   createDraft: (description: string, workspaceId: string) =>
     scopedRequest<{ spec: AgentSpec }>("/v1/agents/drafts/generate", workspaceId, {
       method: "POST",

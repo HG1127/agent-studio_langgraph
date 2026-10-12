@@ -2,6 +2,7 @@ import type { RunStatus, StudioPage } from "@/src/types/studio";
 
 export const navigation: { id: StudioPage; label: string; glyph: string }[] = [
   { id: "create", label: "AI 创建中心", glyph: "✦" },
+  { id: "models", label: "模型连接", glyph: "◇" },
   { id: "agents", label: "我的 Agents", glyph: "◉" },
   { id: "runs", label: "运行中心", glyph: "▤" },
   { id: "tools", label: "工具与能力", glyph: "⌘" },

@@ -1,7 +1,10 @@
 name: Agent Studio Quality Gates
+# Hosted runners are temporarily manual-only while GitHub account billing
+# rejects all jobs before execution. The independent Windows CI publishes
+# ci/windows-isolated commit statuses without consuming Actions minutes.
+# Re-enable push/PR triggers ONLY after billing and isolation are reviewed.
 on:
-  push:
-  pull_request:
+  workflow_dispatch:
 jobs:
   api:
     runs-on: ubuntu-latest
