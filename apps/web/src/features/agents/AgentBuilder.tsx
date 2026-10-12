@@ -45,12 +45,20 @@ export function AgentBuilder({ studio }: Props) {
             </div>
           </div>
         </div>
-        {!studio.health?.model_key_configured && (
-          <small className="hint">
-            尚未连接模型。AI 创建和真实执行需要服务端 MODEL_API_KEY；
-            手动草稿仅验证配置保存，不会伪造 AI 结果。
-          </small>
-        )}
+        {!studio.health?.model_key_configured &&
+          !studio.modelConnections.some((item) => item.is_default && item.model_id) && (
+            <small className="hint">
+              尚未设置可用的默认模型。请先前往{" "}
+              <button
+                type="button"
+                className="model-inline-link"
+                onClick={() => studio.navigate("models")}
+              >
+                模型连接
+              </button>{" "}
+              添加供应商、选择模型并进行真实连接测试。手动草稿不调用 AI。
+            </small>
+          )}
       </section>
 
       {studio.draft && (

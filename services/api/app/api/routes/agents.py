@@ -14,7 +14,7 @@ router = APIRouter(prefix="/v1", tags=["agents"])
 @router.post("/agents/drafts/generate")
 def generate_agent_draft(request: DraftRequest, scope: Editor):
     try:
-        return {"spec": generate_draft(request.description).model_dump()}
+        return {"spec": generate_draft(request.description, scope.workspace_id).model_dump()}
     except ModelNotConfigured as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except ValueError as exc:

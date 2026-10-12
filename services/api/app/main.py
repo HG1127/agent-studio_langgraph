@@ -13,7 +13,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from .api.routes import agents, identity, runs, system
+from .api.routes import agents, identity, model_connections, runs, system
 from .infrastructure.sqlite.migrations import initialize
 
 
@@ -69,5 +69,6 @@ async def local_clients_only(request: Request, call_next):
 
 app.include_router(system.router)
 app.include_router(identity.router)
+app.include_router(model_connections.router)
 app.include_router(agents.router)
 app.include_router(runs.router)

@@ -10,6 +10,7 @@ import type {
   Checkpoint,
   Feedback,
   Health,
+  ModelConnection,
   Run,
   RunAction,
   RunEvent,
@@ -29,6 +30,7 @@ export function useStudio(workspaceId: string, canEdit: boolean) {
   const [runs, setRuns] = useState<Run[]>([]);
   const [tools, setTools] = useState<StudioTool[]>([]);
   const [health, setHealth] = useState<Health | null>(null);
+  const [modelConnections, setModelConnections] = useState<ModelConnection[]>([]);
   const [connected, setConnected] = useState(false);
   const [description, setDescription] = useState("");
   const [draft, setDraft] = useState<AgentSpec | null>(null);
@@ -46,16 +48,18 @@ export function useStudio(workspaceId: string, canEdit: boolean) {
 
   const refresh = useCallback(async () => {
     try {
-      const [newHealth, newAgents, newRuns, newTools] = await Promise.all([
+      const [newHealth, newAgents, newRuns, newTools, newConnections] = await Promise.all([
         request<Health>("/v1/health"),
         scopedRequest<Agent[]>("/v1/agents", workspaceId),
         scopedRequest<Run[]>("/v1/runs", workspaceId),
         request<StudioTool[]>("/v1/tools"),
+        studioApi.listModelConnections(workspaceId),
       ]);
       setHealth(newHealth);
       setAgents(newAgents);
       setRuns(newRuns);
       setTools(newTools);
+      setModelConnections(newConnections);
       setConnected(true);
     } catch {
       setConnected(false);
@@ -272,6 +276,7 @@ export function useStudio(workspaceId: string, canEdit: boolean) {
     tools,
     health,
     connected,
+    modelConnections,
     description,
     setDescription,
     draft,

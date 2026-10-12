@@ -73,7 +73,35 @@ def initialize() -> None:
             connection.execute("ALTER TABLE agents ADD COLUMN workspace_id TEXT")
         if "workspace_id" not in _columns(connection, "runs"):
             connection.execute("ALTER TABLE runs ADD COLUMN workspace_id TEXT")
+        connection.execute(
+            """CREATE TABLE IF NOT EXISTS model_connections(
+                id TEXT PRIMARY KEY,
+                workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+                provider TEXT NOT NULL,
+                name TEXT NOT NULL,
+                protocol TEXT NOT NULL,
+                base_url TEXT NOT NULL,
+                api_key_encrypted TEXT NOT NULL DEFAULT '',
+                model_id TEXT NOT NULL DEFAULT '',
+                is_default INTEGER NOT NULL DEFAULT 0 CHECK(is_default IN (0,1)),
+                last_status TEXT,
+                last_latency_ms INTEGER,
+                last_tokens_per_second REAL,
+                last_tested_at TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )"""
+        )
+        connection.execute(
+            """CREATE UNIQUE INDEX IF NOT EXISTS ix_model_default_workspace
+               ON model_connections(workspace_id) WHERE is_default=1"""
+        )
+        connection.execute(
+            "CREATE INDEX IF NOT EXISTS ix_model_workspace ON model_connections(workspace_id)"
+        )
         for column, definition in {
+            "model_connection_id": "TEXT",
+            "model_name": "TEXT",
             "spec_snapshot": "TEXT",
             "lease_until": "TEXT",
             "heartbeat_at": "TEXT",

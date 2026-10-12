@@ -17,7 +17,7 @@ from langgraph.graph import END, START, StateGraph
 
 from .. import db
 from ..domain.specs import AgentSpec
-from ..llm import ModelGateway
+from ..llm import ModelGateway, model_for_run
 from ..tools import execute_tool, function_definitions
 
 # Restrict LangGraph checkpoint deserialization to known-safe types.
@@ -84,7 +84,9 @@ def build_graph(checkpointer: SqliteSaver, run_id: str, spec: AgentSpec):
         if rounds >= bounds.max_model_rounds:
             return {"final_status": "PARTIAL", "stop_reason": "max_model_rounds"}
         # Tool discovery is server-owned; model may only request registered tools.
-        raw = ModelGateway().chat(state["messages"], tool_definitions, timeout_seconds=remaining)
+        raw = ModelGateway(model_for_run(run_id)).chat(
+            state["messages"], tool_definitions, timeout_seconds=remaining
+        )
         remaining = _control(run_id, bounds.max_duration_seconds)
         if remaining <= 0:
             return {"final_status": "PARTIAL", "stop_reason": "max_duration"}
