@@ -1,0 +1,176 @@
+# Agent Studio — CircleCI Cloud; temporary containers only, no production secrets.
+version: 2.1
+
+jobs:
+  backend:
+    docker:
+      - image: cimg/python:3.14
+    resource_class: medium
+    working_directory: ~/project
+    environment:
+      APP_ENV: development
+      STUDIO_DATABASE_BACKEND: sqlite
+      CI: "true"
+    steps:
+      - checkout
+      - run:
+          name: Reject inherited production secrets
+          command: |
+            for key in MODEL_API_KEY STUDIO_MODEL_ENCRYPTION_KEY STUDIO_POSTGRES_ADMIN_URL STUDIO_POSTGRES_TEST_ADMIN_URL AGENT_STUDIO_DB_PATH; do
+              if [ -n "${!key:-}" ]; then
+                echo "Forbidden secret or database override: $key"
+                exit 1
+              fi
+            done
+      - run:
+          name: Install backend test dependencies
+          command: python -m pip install -r services/api/requirements-dev.txt
+      - run:
+          name: Python lint, unit tests, architecture, offline Alembic
+          command: |
+            set -e
+            cd services/api
+            python -m ruff check .
+            python -m ruff format --check .
+            python -m ruff check --config pyproject.toml ../../scripts/plan_sqlite_migration.py ../../scripts/smoke_postgres_rls.py ../../scripts/provision_pg_runtime.py
+            python -m ruff format --check --config pyproject.toml ../../scripts/plan_sqlite_migration.py ../../scripts/smoke_postgres_rls.py ../../scripts/provision_pg_runtime.py
+            python ../../scripts/check_architecture.py
+            python -m unittest discover -s tests -q
+            python -m alembic -c alembic.ini upgrade head --sql > /dev/null
+      - run:
+          name: LangGraph Agent Harness stub model smoke
+          command: |
+            cd services/api
+            python ../../scripts/smoke_process.py
+
+  web:
+    docker:
+      - image: cimg/node:24.0
+    resource_class: medium
+    working_directory: ~/project
+    environment:
+      CI: "true"
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - checkout
+      - run:
+          name: Install exact Next.js dependencies
+          command: cd apps/web && npm ci --no-audit --no-fund
+      - run:
+          name: ESLint, Prettier, TypeScript, production build
+          command: |
+            set -e
+            cd apps/web
+            npm run lint
+            npm run format:check
+            npm run typecheck
+            npm run build
+
+  cookie-proxy:
+    docker:
+      - image: cimg/python:3.14-node
+    resource_class: medium
+    working_directory: ~/project
+    environment:
+      APP_ENV: development
+      STUDIO_DATABASE_BACKEND: sqlite
+      CI: "true"
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - checkout
+      - run:
+          name: Reject inherited production secrets
+          command: |
+            for key in MODEL_API_KEY STUDIO_MODEL_ENCRYPTION_KEY STUDIO_POSTGRES_ADMIN_URL STUDIO_POSTGRES_TEST_ADMIN_URL AGENT_STUDIO_DB_PATH; do
+              if [ -n "${!key:-}" ]; then
+                echo "Forbidden secret or database override: $key"
+                exit 1
+              fi
+            done
+      - run:
+          name: Install cookie-proxy test dependencies
+          command: |
+            set -e
+            python -m pip install -r services/api/requirements-dev.txt
+            npm ci --prefix apps/web --no-audit --no-fund
+            node --version
+      - run:
+          name: Verify localhost Cookie and Workspace integration
+          command: python scripts/smoke_web_proxy.py
+
+  postgres-rls:
+    # CircleCI Docker sidecars share localhost with the primary container.
+    # PG is test-only and uses the localhost port whitelisted by RLS smoke.
+    docker:
+      - image: cimg/python:3.14
+      - image: pgvector/pgvector:pg17
+        environment:
+          POSTGRES_DB: agent_studio
+          POSTGRES_USER: studio_migrator
+          POSTGRES_PASSWORD: ci-test-only-not-a-secret
+        command: ["postgres", "-c", "port=54329"]
+    resource_class: medium
+    working_directory: ~/project
+    environment:
+      CI: "true"
+      APP_ENV: development
+      STUDIO_DATABASE_BACKEND: sqlite
+      STUDIO_POSTGRES_ADMIN_URL: postgresql+psycopg://studio_migrator:ci-test-only-not-a-secret@127.0.0.1:54329/agent_studio
+      STUDIO_POSTGRES_TEST_ADMIN_URL: postgresql+psycopg://studio_migrator:ci-test-only-not-a-secret@127.0.0.1:54329/agent_studio
+    steps:
+      - checkout
+      - run:
+          name: Reject real model or persistent database secrets
+          command: |
+            for key in MODEL_API_KEY STUDIO_MODEL_ENCRYPTION_KEY AGENT_STUDIO_DB_PATH; do
+              if [ -n "${!key:-}" ]; then
+                echo "Forbidden model secret or persistent database: $key"
+                exit 1
+              fi
+            done
+      - run:
+          name: Install PostgreSQL integration dependencies
+          command: python -m pip install -r services/api/requirements-dev.txt
+      - run:
+          name: Wait for isolated PostgreSQL at localhost
+          command: |
+            python - <<'PY'
+            import os
+            import time
+            from sqlalchemy import create_engine, text
+            engine = create_engine(os.environ["STUDIO_POSTGRES_TEST_ADMIN_URL"], connect_args={"connect_timeout": 3})
+            try:
+                for attempt in range(40):
+                    try:
+                        with engine.connect() as conn:
+                            conn.execute(text("SELECT 1"))
+                        break
+                    except Exception:
+                        if attempt == 39:
+                            raise
+                        time.sleep(1)
+            finally:
+                engine.dispose()
+            print("Ephemeral PG17 is ready")
+            PY
+      - run:
+          name: Apply PG17 migrations and verify RLS boundaries
+          command: |
+            set -e
+            cd services/api
+            python -m alembic -c alembic.ini upgrade head
+            python ../../scripts/smoke_postgres_rls.py
+
+workflows:
+  agent-studio-quality:
+    jobs:
+      - backend:
+          filters: &trusted-branches
+            branches:
+              only: /^(develop|circleci-project-setup|update-circleci-config)$/
+      - web:
+          filters: *trusted-branches
+      - cookie-proxy:
+          filters: *trusted-branches
+      - postgres-rls:
+          filters: *trusted-branches
