@@ -19,16 +19,23 @@ export function StudioShell({ studio, auth, children }: Props) {
   const currentPage = navigation.find((item) => item.id === studio.page);
   const workerOnline = studio.health?.worker_online === true;
   const healthChecked = studio.health !== null;
-  const database = studio.health?.database_backend === "sqlite_development"
-    ? "SQLite（本地开发）"
-    : studio.health?.database_backend || "等待数据库状态";
+  const database =
+    studio.health?.database_backend === "sqlite_development"
+      ? "SQLite（本地开发）"
+      : studio.health?.database_backend || "等待数据库状态";
 
   async function copyWorkerCommand() {
     try {
       await navigator.clipboard.writeText(WORKER_COMMAND);
-      studio.setFeedback({ error: false, text: "Worker 启动命令已复制。请在项目根目录打开另一个 PowerShell 窗口执行。" });
+      studio.setFeedback({
+        error: false,
+        text: "Worker 启动命令已复制。请在项目根目录打开另一个 PowerShell 窗口执行。",
+      });
     } catch {
-      studio.setFeedback({ error: true, text: "浏览器无法使用剪贴板，请选中并手动复制下方启动命令。" });
+      studio.setFeedback({
+        error: true,
+        text: "浏览器无法使用剪贴板，请选中并手动复制下方启动命令。",
+      });
     }
   }
 
@@ -87,10 +94,9 @@ export function StudioShell({ studio, auth, children }: Props) {
             <details className="development-more">
               <summary>查看数据隔离、权限和上线限制</summary>
               <p>
-                当前采用本地账户与工作空间级权限校验，尚未通过生产级身份安全审计。
-                PostgreSQL 17 + pgvector 模型及 RLS 方案已准备，但尚未完成数据库迁移和
-                FastAPI / Worker 切换。正式沙盒、生产级调度及安全验收也尚未完成。
-                不要公开部署或导入敏感资料。
+                当前采用本地账户与工作空间级权限校验，尚未通过生产级身份安全审计。 PostgreSQL 17 +
+                pgvector 模型及 RLS 方案已准备，但尚未完成数据库迁移和 FastAPI / Worker
+                切换。正式沙盒、生产级调度及安全验收也尚未完成。 不要公开部署或导入敏感资料。
               </p>
             </details>
           </section>
@@ -99,7 +105,11 @@ export function StudioShell({ studio, auth, children }: Props) {
             <div className="runtime-summary">
               <span className={`signal ${workerOnline ? "good" : "bad"}`} />
               <strong>
-                {!healthChecked ? "正在检查 Worker" : workerOnline ? "LangGraph Worker 已运行" : "LangGraph Worker 未运行"}
+                {!healthChecked
+                  ? "正在检查 Worker"
+                  : workerOnline
+                    ? "LangGraph Worker 已运行"
+                    : "LangGraph Worker 未运行"}
               </strong>
               <span className="runtime-db">当前数据库：{database}</span>
               <span className="runtime-pg">PostgreSQL：准备中，尚未接管</span>
@@ -108,7 +118,11 @@ export function StudioShell({ studio, auth, children }: Props) {
               <div className="runtime-guide">
                 <span>运行任务前，需要在项目根目录打开另一个 PowerShell 窗口：</span>
                 <code>{WORKER_COMMAND}</code>
-                <button type="button" className="runtime-copy" onClick={() => void copyWorkerCommand()}>
+                <button
+                  type="button"
+                  className="runtime-copy"
+                  onClick={() => void copyWorkerCommand()}
+                >
                   复制命令
                 </button>
               </div>
@@ -116,8 +130,10 @@ export function StudioShell({ studio, auth, children }: Props) {
           </section>
 
           {studio.feedback && (
-            <div role={studio.feedback.error ? "alert" : "status"}
-              className={`feedback ${studio.feedback.error ? "error" : "ok"}`}>
+            <div
+              role={studio.feedback.error ? "alert" : "status"}
+              className={`feedback ${studio.feedback.error ? "error" : "ok"}`}
+            >
               <span>{studio.feedback.text}</span>
               <button type="button" aria-label="关闭提示" onClick={() => studio.setFeedback(null)}>
                 ×
